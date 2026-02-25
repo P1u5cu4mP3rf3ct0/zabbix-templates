@@ -24,8 +24,8 @@ Plantilla de Zabbix para la monitorización del log de eventos de seguridad de W
 |---|:---:|---|:---:|
 | `Security` | Todos | Usuarios, grupos, autenticación, privilegios, servicios, tareas | ✅ |
 | `System` | Todos | Fallos de procesamiento de GPO | ✅ |
-| `DhcpAdminEvents` | DHCP Server | Monitorización del servicio DHCP y detección de servidores no autorizados | ✅ *(si el rol está instalado)* |
-| `Microsoft-Windows-DNSServer/Audit` | DNS Server | Cambios en zonas y registros DNS | ✅ *(desde WS 2016)* |
+| `DhcpAdminEvents` | DHCP Server | Monitorización del servicio DHCP y detección de servidores no autorizados | *(si el rol está instalado)* |
+| `Microsoft-Windows-DNSServer/Audit` | DNS Server | Cambios en zonas y registros DNS | *(desde WS 2016)* |
 
 > ⚠️ Para los eventos de GPO (5136/5137/5141) es necesario habilitar **Audit Directory Service Changes** en la Política de Auditoría Avanzada del dominio (`auditpol /set /subcategory:"Directory Service Changes" /success:enable`).
 
