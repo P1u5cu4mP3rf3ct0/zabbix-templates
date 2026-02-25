@@ -1,0 +1,1340 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 5200a8027a5b4f21983e3349ae9f030a
+    name: Windows Event Log
+  templates:
+  - uuid: e98657436c074d18bd041393016d8a0f
+    template: Windows AD Event Log DC
+    name: Windows AD Event Log - Domain Controller (2022)
+    description: "## Overview / Descripción\n\nMonitorización de eventos del log de seguridad de Windows para Controladores de Dominio.\nMonitoring of Windows Security Event Log for Active Directory Domain Controllers.\n\nCompatible con: Windows Server 2016 / 2019 / 2022 + Zabbix 7.x\n\n### FIX v2.0: Corregido regex del item de bloqueo/desbloqueo (4740|4767)\n### v3.0: Añadidas dependencias entre triggers relacionados. Añadidos módulos de GPO, DHCP y DNS.\n\n### Eventos monitorizados / Monitored Events:\n\n**Cuentas de usuario / User Accounts:**\n  - 4720: Cuenta creada / Account created\n  - 4722: Cuenta habilitada / Account enabled\n  - 4723: Intento de cambio de contraseña / Password change attempt\n  - 4724: Restablecimiento de contraseña / Password reset\n  - 4725: Cuenta deshabilitada / Account disabled\n  - 4726: Cuenta eliminada / Account deleted\n  - 4738: Cuenta modificada / Account changed\n  - 4740: Cuenta bloqueada / Account locked out\n  - 4767: Cuenta desbloqueada / Account unlocked\n\n**Grupos / Groups:**\n  - 4728: Miembro añadido a grupo global / Member added to global group\n  - 4729: Miembro eliminado de grupo global / Member removed from global group\n  - 4732: Miembro añadido a grupo local / Member added to local group\n  - 4733: Miembro eliminado de grupo local / Member removed from local group\n  - 4756: Miembro añadido a grupo universal / Member added to universal group\n  - 4757: Miembro eliminado de grupo universal / Member removed from universal group\n\n**Políticas y dominio / Policies & Domain:**\n  - 4713: Política Kerberos modificada / Kerberos policy changed\n  - 4739: Política de dominio modificada / Domain policy changed\n\n**GPO y objetos AD / GPO & AD Objects:**\n  - 4706: Nueva confianza de dominio creada / New domain trust created\n  - 4707: Confianza de dominio eliminada / Domain trust removed\n  - 5136: Objeto de directorio modificado (incluye GPO) / DS object modified (includes GPO)\n  - 5137: Objeto de directorio creado (incluye GPO) / DS object created (includes GPO)\n  - 5141: Objeto de directorio eliminado (incluye GPO) / DS object deleted (includes GPO)\n  - Sistema/1085: Procesamiento de GPO fallido / Group Policy processing failed\n  - Sistema/1055: GP no pudo contactar DC / GP failed to contact DC\n\n**Equipos / Computers:**\n  - 4741: Cuenta de equipo creada / Computer account created\n  - 4743: Cuenta de equipo eliminada / Computer account deleted\n\n**Autenticación / Authentication:**\n  - 4625: Fallo de inicio de sesión / Failed logon\n  - 4648: Inicio de sesión con credenciales explícitas / Explicit credentials logon\n  - 4771: Fallo de preautenticación Kerberos / Kerberos pre-auth failed\n\n**Privilegios y servicios / Privileges & Services:**\n  - 4672: Privilegios especiales asignados / Special privileges assigned\n  - 4697: Servicio instalado / Service installed\n  - 4698: Tarea programada creada / Scheduled task created\n  - 4699: Tarea programada eliminada / Scheduled task deleted\n  - 4702: Tarea programada modificada / Scheduled task modified\n\n**Integridad del sistema / System Integrity:**\n  - 1102: Log de seguridad borrado / Security log cleared\n  - 4616: Hora del sistema modificada / System time changed\n\n**DHCP Server (log: DhcpAdminEvents):**\n  - 1008: Servicio DHCP detenido por error / DHCP service stopped due to error\n  - 1020: Pool de direcciones casi lleno / Scope nearly exhausted\n  - 1053: Servidor DHCP no autorizado detectado / Rogue DHCP server detected\n  - 1054: Servicio DHCP detenido por servidor no autorizado / DHCP stopped due to rogue server\n  - 1063: Pool de direcciones agotado / Address pool exhausted\n\n**DNS Server (log: Microsoft-Windows-DNSServer/Audit):**\n  - 512: Zona DNS creada / DNS zone created\n  - 513: Zona DNS eliminada / DNS zone deleted\n  - 514: Zona DNS modificada / DNS zone modified\n  - 515: Registro DNS creado / DNS record created\n  - 516: Registro DNS eliminado / DNS record deleted\n\n## Dependencias entre triggers / Trigger Dependencies:\n  - Triggers individuales de bloqueo dependen del trigger de oleada masiva.\n  - Triggers individuales de fallo auth dependen del trigger de fuerza bruta.\n  - Triggers individuales de fallo Kerberos dependen del trigger de Kerberoasting.\n  - ALERTA tasa bloqueos (>=5) depende de CRITICO oleada masiva (>=15).\n  - ALERTA tasa auth fail (>=20) depende de CRITICO fuerza bruta (>=100).\n  - ALERTA Kerberos fail (>=10) depende de CRITICO Kerberoasting (>=50).\n\n## Notas de instalación / Installation Notes\n\n1. Asegúrate de que el Agente Zabbix esté configurado como agente activo.\n   Ensure Zabbix Agent is configured as active agent.\n2. El agente debe ejecutarse con permisos para leer los logs de Seguridad, Sistema, DhcpAdminEvents y DNS.\n   Agent must run with permissions to read Security, System, DhcpAdminEvents and DNS event logs.\n3. En Windows Server 2022, asegúrate de que las políticas de auditoría avanzadas estén habilitadas.\n   On Windows Server 2022, ensure Advanced Audit Policies are enabled.\n4. Para eventos GPO (5136/5137/5141): habilitar 'Audit Directory Service Changes' en Política de Auditoría Avanzada.\n   For GPO events (5136/5137/5141): enable 'Audit Directory Service Changes' in Advanced Audit Policy.\n5. Los eventos DNS se recogen del log Microsoft-Windows-DNSServer/Audit (habilitado por defecto en 2016+).\n   DNS events are collected from Microsoft-Windows-DNSServer/Audit (enabled by default on 2016+).\n6. Los eventos DHCP se recogen del log DhcpAdminEvents (requiere rol DHCP Server instalado).\n   DHCP events are collected from DhcpAdminEvents (requires DHCP Server role installed).\n\n## Autor / Author\nBased on original work by Andrew Herasym.\nExtended for Windows Server 2022 + Zabbix 7.x + GPO/DHCP/DNS + v3.0 trigger dependencies.\n"
+    groups:
+    - name: Windows Event Log
+    items:
+    - uuid: cc7c0f8670ff4d258d222653afc36c37
+      name: Security - Log de seguridad borrado
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^1102$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "El log de seguridad de Windows ha sido borrado (Event ID 1102).\n    Este evento es crítico e indica una posible acción de encubrimiento."
+      tags:
+      - tag: Application
+        value: Security Integrity
+      - tag: EventID
+        value: '1102'
+      triggers:
+      - uuid: 3e205fc3e2d74bbba7de5e035e9f94a5
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^1102$,,skip],,"^1102$")=1
+        name: Log de seguridad borrado en {HOST.NAME}
+        priority: HIGH
+        description: El log de seguridad de Windows ha sido borrado. Acción inmediata requerida.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: LogCleared
+        - tag: ClearedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 8e851ace3a544d09b0c409625c6f821d
+      name: Security - Hora del sistema modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4616$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "La hora del sistema ha sido modificada (Event ID 4616).\n    Cambios en la hora del sistema pueden afectar a Kerberos y la replicación AD."
+      tags:
+      - tag: Application
+        value: Security Integrity
+      - tag: EventID
+        value: '4616'
+      triggers:
+      - uuid: c4d32e989f684e8eb3ccc6eebbd612f9
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4616$,,skip],,"^4616$")=1
+        name: Hora del sistema modificada en {HOST.NAME}
+        priority: HIGH
+        description: La hora del sistema ha sido modificada. Esto puede causar problemas de autenticación Kerberos.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: TimeChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 9f5fe69b730e4a1baeaa68b211e5d4a3
+      name: AD Users - Cuenta creada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4720$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: Se ha creado una cuenta de usuario (Event ID 4720).
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: '4720'
+      triggers:
+      - uuid: 3fb190c98c59431a98789e6c18532dc1
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4720$,,skip],,"^4720$")=1
+        name: Nueva cuenta de usuario creada en {HOST.NAME}
+        priority: INFO
+        description: Se ha creado una nueva cuenta de usuario en el dominio.
+        tags:
+        - tag: Category
+          value: UserAccount
+        - tag: Action
+          value: Created
+        - tag: NewAccount
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:New Account|Nueva cuenta):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: CreatedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: a2f76ab7b25446cfbc55fca1b9bcfd70
+      name: AD Users - Intento de cambio de contraseña
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4723$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Un usuario ha intentado cambiar su propia contraseña (Event ID 4723).\n    Incluye intentos fallidos (contraseña no cumple requisitos)."
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: '4723'
+      triggers:
+      - uuid: 693972c629304674bb4c7302bddde8f2
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4723$,,skip],,"^4723$")=1
+        name: Intento de cambio de contraseña en {HOST.NAME}
+        priority: INFO
+        description: Un usuario ha intentado cambiar su contraseña (puede ser intento fallido).
+        tags:
+        - tag: Category
+          value: Password
+        - tag: Action
+          value: ChangeAttempt
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Target Account|Cuenta de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 215bf0b9f27846f9948eae6e0b363a46
+      name: AD Users - Contraseña restablecida
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4724$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: Un administrador ha restablecido la contraseña de un usuario (Event ID 4724).
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: '4724'
+      triggers:
+      - uuid: 1afa842467d34e00b2c23d9bd6beab07
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4724$,,skip],,"^4724$")=1
+        name: Contraseña de usuario restablecida en {HOST.NAME}
+        priority: WARNING
+        description: Un administrador ha restablecido la contraseña de una cuenta de usuario.
+        tags:
+        - tag: Category
+          value: Password
+        - tag: Action
+          value: AdminReset
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Target Account|Cuenta de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ResetBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: e7cf92170d4a45479786972c9fe16c6b
+      name: AD Users - Cuenta deshabilitada y habilitada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4725$|^4722$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para deshabilitar (4725) y habilitar (4722) cuentas.\n    PROBLEM cuando llega 4725, se resuelve automaticamente con 4722 del mismo usuario."
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: 4725|4722
+      triggers:
+      - uuid: a550c15054d445d693a1a76349f203ea
+        name: Cuenta de usuario deshabilitada en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4725$|^4722$,,skip],,"4725")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4725$|^4722$,,skip],,"4722")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: Account
+        description: "Una cuenta de usuario ha sido deshabilitada.\n    Se resuelve AUTOMATICAMENTE cuando la misma cuenta es habilitada (4722)."
+        tags:
+        - tag: Category
+          value: UserAccount
+        - tag: Action
+          value: Disabled
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Target Account|Cuenta de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: DisabledBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: 43a527f17f374a95a423db62095abfb9
+      name: AD Users - Cuenta eliminada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4726$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: Una cuenta de usuario ha sido eliminada del directorio activo (Event ID 4726).
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: '4726'
+      triggers:
+      - uuid: 1be01afeef3f4261a746b1c5fbd9d393
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4726$,,skip],,"^4726$")=1
+        name: Cuenta de usuario ELIMINADA en {HOST.NAME}
+        priority: WARNING
+        description: Una cuenta de usuario ha sido eliminada del dominio. Acción irreversible.
+        tags:
+        - tag: Category
+          value: UserAccount
+        - tag: Action
+          value: Deleted
+        - tag: DeletedAccount
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Target Account|Cuenta de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: DeletedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 71a6aa90a0c6423a945646d1add81fb9
+      name: AD Users - Cuenta modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4738$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Los atributos de una cuenta de usuario han sido modificados (Event ID 4738).\n    Incluye cambios en nombre, descripción, flags de cuenta, etc."
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: '4738'
+      triggers:
+      - uuid: fa62ecfae6d648f5802b3702eaacd486
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4738$,,skip],,"^4738$")=1
+        name: Cuenta de usuario modificada en {HOST.NAME}
+        priority: INFO
+        description: Los atributos de una cuenta de usuario han sido modificados.
+        tags:
+        - tag: Category
+          value: UserAccount
+        - tag: Action
+          value: Changed
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Target Account|Cuenta de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: ec3f0d6fc63b4508ac69a751e6cba242
+      name: AD Users - Bloqueo y desbloqueo de cuenta
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4740$|^4767$,,skip]
+      delay: '30'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado que captura TANTO el bloqueo (4740) COMO el desbloqueo (4767)\n    de cuentas de usuario en el mismo item.\n    FIX v2.0: Regex corregido de ^(4740|4767)$ a ^4740$|^4767$\n    para compatibilidad con el agente Windows.\n    v3.0: Trigger de bloqueo individual tiene dependencia del trigger de oleada masiva."
+      tags:
+      - tag: Application
+        value: AD Users
+      - tag: EventID
+        value: 4740|4767
+      triggers:
+      - uuid: f58c0f46caf0477d974178d2b7f1d3a3
+        name: Cuenta BLOQUEADA en {HOST.NAME}
+        priority: WARNING
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4740$|^4767$,,skip],,"4740")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4740$|^4767$,,skip],,"4767")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: LockedAccount
+        description: "Una cuenta de usuario ha sido bloqueada.\n    Este trigger se resuelve AUTOMÁTICAMENTE cuando llega el evento 4767\n    (desbloqueo) para el MISMO usuario (correlación por tag LockedAccount)."
+        tags:
+        - tag: Category
+          value: UserAccount
+        - tag: Action
+          value: LockedOut
+        - tag: LockedAccount
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Account That Was Locked Out|Cuenta bloqueada|Target Account|Cuenta de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: CallerComputer
+          value: '{{ITEM.VALUE}.regsub("(?:Caller Computer Name|Nombre de equipo del autor de la llamada):\s+(\S+)", \1)}'
+    - uuid: d94a4906b08c4deba3c7f8c0c8621961
+      name: AD Groups - Cambios en grupo global
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4728$|^4729$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para alta (4728) y baja (4729) en grupos globales.\n    PROBLEM cuando se añade un miembro, se resuelve automaticamente al eliminarlo (4729)."
+      tags:
+      - tag: Application
+        value: AD Groups
+      - tag: EventID
+        value: 4728|4729
+      triggers:
+      - uuid: ba8197cba3884ac1891ed47db9692328
+        name: Miembro añadido a grupo GLOBAL en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4728$|^4729$,,skip],,"4728")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4728$|^4729$,,skip],,"4729")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: MemberAdded
+        description: "Un miembro ha sido añadido a un grupo global de seguridad.\n    Se resuelve AUTOMATICAMENTE cuando ese miembro es eliminado del grupo (4729)."
+        tags:
+        - tag: Category
+          value: GroupMembership
+        - tag: Action
+          value: MemberAdded
+        - tag: GroupType
+          value: Global
+        - tag: Group
+          value: '{{ITEM.VALUE}.regsub("(?:Group Name|Nombre del grupo):\s+(\S+)", \1)}'
+        - tag: MemberAdded
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Member|Miembro):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: 64a9e5e8ec1949268d7cefa70bcdd5da
+      name: AD Groups - Cambios en grupo local
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4732$|^4733$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para alta (4732) y baja (4733) en grupos locales.\n    ATENCION: Cambios en Administradores o Remote Desktop Users son criticos.\n    PROBLEM cuando se añade un miembro, se resuelve automaticamente al eliminarlo (4733)."
+      tags:
+      - tag: Application
+        value: AD Groups
+      - tag: EventID
+        value: 4732|4733
+      triggers:
+      - uuid: eaa1b2a6493f4f7291ce3dba3b254cb4
+        name: Miembro añadido a grupo LOCAL en {HOST.NAME}
+        priority: WARNING
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4732$|^4733$,,skip],,"4732")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4732$|^4733$,,skip],,"4733")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: MemberAdded
+        description: "Un miembro ha sido añadido a un grupo local de seguridad.\n    Se resuelve AUTOMATICAMENTE cuando ese miembro es eliminado del grupo (4733).\n    Presta especial atencion si el grupo es Administradores o Remote Desktop Users."
+        tags:
+        - tag: Category
+          value: GroupMembership
+        - tag: Action
+          value: MemberAdded
+        - tag: GroupType
+          value: Local
+        - tag: Group
+          value: '{{ITEM.VALUE}.regsub("(?:Group Name|Nombre del grupo):\s+(\S+)", \1)}'
+        - tag: MemberAdded
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Member|Miembro):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: 94435fd95dcc404a8e9b2c97edb1ac89
+      name: AD Groups - Cambios en grupo universal
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4756$|^4757$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para alta (4756) y baja (4757) en grupos universales.\n    PROBLEM cuando se añade un miembro, se resuelve automaticamente al eliminarlo (4757)."
+      tags:
+      - tag: Application
+        value: AD Groups
+      - tag: EventID
+        value: 4756|4757
+      triggers:
+      - uuid: c4b6e05de9d94428b0256da5331708df
+        name: Miembro añadido a grupo UNIVERSAL en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4756$|^4757$,,skip],,"4756")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4756$|^4757$,,skip],,"4757")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: MemberAdded
+        description: "Un miembro ha sido añadido a un grupo universal de seguridad.\n    Se resuelve AUTOMATICAMENTE cuando ese miembro es eliminado del grupo (4757)."
+        tags:
+        - tag: Category
+          value: GroupMembership
+        - tag: Action
+          value: MemberAdded
+        - tag: GroupType
+          value: Universal
+        - tag: Group
+          value: '{{ITEM.VALUE}.regsub("(?:Group Name|Nombre del grupo):\s+(\S+)", \1)}'
+        - tag: MemberAdded
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Member|Miembro):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: 940bc813b8f14762a9c3c2ca9e6d1394
+      name: AD Policy - Política de dominio modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4739$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "La política de dominio ha sido modificada (Event ID 4739).\n    Incluye cambios en la política de contraseñas, política de bloqueo, etc."
+      tags:
+      - tag: Application
+        value: AD Policy
+      - tag: EventID
+        value: '4739'
+      triggers:
+      - uuid: c6998c732fee4d1e9a3e9020bfcc31ba
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4739$,,skip],,"^4739$")=1
+        name: Política de dominio modificada en {HOST.NAME}
+        priority: AVERAGE
+        description: La política de dominio ha sido modificada. Revisa los cambios realizados.
+        tags:
+        - tag: Category
+          value: DomainPolicy
+        - tag: Action
+          value: PolicyChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 8bb9a1c1f2fd40568b9ff24cc93618ab
+      name: AD Policy - Política Kerberos modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4713$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "La política de Kerberos ha sido modificada (Event ID 4713).\n    Cambios en la política Kerberos pueden afectar a toda la autenticación del dominio."
+      tags:
+      - tag: Application
+        value: AD Policy
+      - tag: EventID
+        value: '4713'
+      triggers:
+      - uuid: f95e05aed5fa49ecb7cf2cb0743fcefa
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4713$,,skip],,"^4713$")=1
+        name: Política Kerberos modificada en {HOST.NAME}
+        priority: HIGH
+        description: La política de Kerberos del dominio ha sido modificada. Esto afecta a toda la autenticación.
+        tags:
+        - tag: Category
+          value: KerberosPolicy
+        - tag: Action
+          value: PolicyChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 746147790a994d01b904825a63927f44
+      name: AD Computers - Cuenta de equipo creada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4741$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: Una cuenta de equipo ha sido creada en el directorio activo (Event ID 4741).
+      tags:
+      - tag: Application
+        value: AD Computers
+      - tag: EventID
+        value: '4741'
+      triggers:
+      - uuid: 16be24b74c8840a0bbe067008782350d
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4741$,,skip],,"^4741$")=1
+        name: Nueva cuenta de equipo creada en {HOST.NAME}
+        priority: INFO
+        description: Una nueva cuenta de equipo ha sido creada en el dominio.
+        tags:
+        - tag: Category
+          value: ComputerAccount
+        - tag: Action
+          value: Created
+        - tag: NewComputer
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:New Computer Account|Nueva cuenta de equipo):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: CreatedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        correlation_mode: TAG_VALUE
+        correlation_tag: NewComputer
+        manual_close: 'YES'
+    - uuid: 5bd245f66dd84813a1df069fe69d5e52
+      name: AD Computers - Cuenta de equipo eliminada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4743$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: Una cuenta de equipo ha sido eliminada del directorio activo (Event ID 4743).
+      tags:
+      - tag: Application
+        value: AD Computers
+      - tag: EventID
+        value: '4743'
+      triggers:
+      - uuid: f60506152f9b4bbab30d1961d284155c
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4743$,,skip],,"^4743$")=1
+        name: Cuenta de equipo ELIMINADA en {HOST.NAME}
+        priority: WARNING
+        description: Una cuenta de equipo ha sido eliminada del dominio.
+        tags:
+        - tag: Category
+          value: ComputerAccount
+        - tag: Action
+          value: Deleted
+        - tag: DeletedComputer
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Target Computer|Equipo de destino):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: DeletedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: c1a589634b3843d8aaffc5d8c8525542
+      name: AD Auth - Fallo de inicio de sesión
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4625$,,skip]
+      delay: '60'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: "Intento de inicio de sesión fallido (Event ID 4625).\n    NOTA: Este evento puede ser muy ruidoso. Considera ajustar los triggers\n    con umbrales (p.ej. N fallos en M minutos) según tu entorno."
+      tags:
+      - tag: Application
+        value: AD Authentication
+      - tag: EventID
+        value: '4625'
+      triggers:
+      - uuid: 32bdf18ee0b84ba7b96580301081f173
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4625$,,skip],,"^4625$")=1
+        name: Fallo de autenticación en {HOST.NAME}
+        priority: INFO
+        description: "Se ha producido un intento de inicio de sesión fallido.\n    Investiga si se repite para el mismo usuario o desde el mismo equipo."
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: FailedLogon
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: FailureReason
+          value: '{{ITEM.VALUE}.regsub("(?:Failure Reason|Razón del error):\s+(.+?)(?:\r|\n)", \1)}'
+        - tag: WorkStation
+          value: '{{ITEM.VALUE}.regsub("(?:Workstation Name|Nombre de equipo del autor de la llamada):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: dd4ffdaefba949018e46ba6567e60b1d
+      name: AD Auth - Inicio de sesión con credenciales explícitas
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4648$,,skip]
+      delay: '60'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: "Un proceso intentó iniciar sesión usando credenciales explícitas (Event ID 4648).\n    Puede indicar movimiento lateral o uso de runas/psexec."
+      tags:
+      - tag: Application
+        value: AD Authentication
+      - tag: EventID
+        value: '4648'
+      triggers:
+      - uuid: dd921149c78a4d1c80b1a785a6b13de9
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4648$,,skip],,"^4648$")=1
+        name: Inicio de sesión con credenciales explícitas en {HOST.NAME}
+        priority: WARNING
+        description: "Se ha detectado un inicio de sesión con credenciales explícitas.\n    Investiga si corresponde a actividad legítima de administración."
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: ExplicitCredentials
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: TargetServer
+          value: '{{ITEM.VALUE}.regsub("(?:Target Server Name|Nombre del servidor de destino):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 293664ac085c41b9a408cce7409a757e
+      name: AD Auth - Fallo preautenticación Kerberos
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4771$,,skip]
+      delay: '60'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: "Fallo de preautenticación Kerberos (Event ID 4771).\n    Puede indicar ataques de fuerza bruta o AS-REP roasting."
+      tags:
+      - tag: Application
+        value: AD Authentication
+      - tag: EventID
+        value: '4771'
+      triggers:
+      - uuid: df1852b47a3346a585be765799197963
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4771$,,skip],,"^4771$")=1
+        name: Fallo preautenticación Kerberos en {HOST.NAME}
+        priority: WARNING
+        description: "Fallo de preautenticación Kerberos detectado. Puede indicar un ataque AS-REP Roasting\n    o intentos de fuerza bruta contra cuentas de dominio."
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: KerberosPreAuthFailed
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ClientAddress
+          value: '{{ITEM.VALUE}.regsub("(?:Client Address|Dirección del cliente):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: d212a39b772e4982a7e7d309f801ce22
+      name: AD Privileges - Privilegios especiales asignados
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4672$,,skip]
+      delay: '60'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: "Se han asignado privilegios especiales a un nuevo inicio de sesión (Event ID 4672).\n    Se genera cuando una cuenta con privilegios elevados (SeTcbPrivilege, SeDebugPrivilege, etc.)\n    inicia sesión. Monitoriza para detectar usos inusuales de cuentas privilegiadas."
+      tags:
+      - tag: Application
+        value: AD Privileges
+      - tag: EventID
+        value: '4672'
+      triggers:
+      - uuid: b8a020457e674034af134c603e741774
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4672$,,skip],,"^4672$")=1
+        name: Privilegios especiales asignados en {HOST.NAME}
+        priority: INFO
+        description: Se han asignado privilegios especiales a un inicio de sesión. Verifica que sea actividad legítima.
+        tags:
+        - tag: Category
+          value: Privileges
+        - tag: Action
+          value: SpecialPrivileges
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: Privileges
+          value: '{{ITEM.VALUE}.regsub("(?:Privileges|Privilegios):\s+(.+?)(?:\r|\n)", \1)}'
+        manual_close: 'YES'
+    - uuid: ce9af66dba4f4148bfd77cb46d60da43
+      name: AD Services - Nuevo servicio instalado
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4697$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "Un nuevo servicio ha sido instalado en el sistema (Event ID 4697).\n    La instalación no autorizada de servicios puede indicar malware o backdoors."
+      tags:
+      - tag: Application
+        value: AD Services
+      - tag: EventID
+        value: '4697'
+      triggers:
+      - uuid: 0721a2080a0a4b09a74f68e7a3bd1664
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4697$,,skip],,"^4697$")=1
+        name: Nuevo servicio instalado en {HOST.NAME}
+        priority: HIGH
+        description: Un nuevo servicio ha sido instalado. Verifica que sea legítimo y autorizado.
+        tags:
+        - tag: Category
+          value: Services
+        - tag: Action
+          value: ServiceInstalled
+        - tag: ServiceName
+          value: '{{ITEM.VALUE}.regsub("(?:Service Name|Nombre del servicio):\s+(\S+)", \1)}'
+        - tag: InstalledBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 60f74fb3438747d09671b0105134c7a5
+      name: AD Tasks - Tarea programada creada y eliminada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4698$|^4699$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para creacion (4698) y eliminacion (4699) de tareas programadas.\n    PROBLEM cuando se crea una tarea, se resuelve automaticamente cuando es eliminada.\n    Util para detectar tareas de persistencia: si no se eliminan, el problema permanece abierto."
+      tags:
+      - tag: Application
+        value: AD Tasks
+      - tag: EventID
+        value: 4698|4699
+      triggers:
+      - uuid: eebfeba275374cc799bfb935dbefd527
+        name: Tarea programada CREADA en {HOST.NAME}
+        priority: WARNING
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4698$|^4699$,,skip],,"4698")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4698$|^4699$,,skip],,"4699")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: TaskName
+        description: "Se ha creado una nueva tarea programada.\n    Se resuelve AUTOMATICAMENTE cuando la tarea es eliminada (4699).\n    Si el trigger permanece abierto, la tarea sigue existiendo en el sistema."
+        tags:
+        - tag: Category
+          value: ScheduledTask
+        - tag: Action
+          value: TaskCreated
+        - tag: TaskName
+          value: '{{ITEM.VALUE}.regsub("(?:Task Name|Nombre de la tarea):\s+(\S+)", \1)}'
+        - tag: CreatedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: ff52c8ab23b743808ede26816c03f486
+      name: AD Tasks - Tarea programada modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4702$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: Una tarea programada existente ha sido modificada (Event ID 4702).
+      tags:
+      - tag: Application
+        value: AD Tasks
+      - tag: EventID
+        value: '4702'
+      triggers:
+      - uuid: ee3ef38b500c44ce851052db63bd4aef
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4702$,,skip],,"^4702$")=1
+        name: Tarea programada MODIFICADA en {HOST.NAME}
+        priority: INFO
+        description: Una tarea programada existente ha sido modificada. Verifica que el cambio sea legítimo.
+        tags:
+        - tag: Category
+          value: ScheduledTask
+        - tag: Action
+          value: TaskModified
+        - tag: TaskName
+          value: '{{ITEM.VALUE}.regsub("(?:Task Name|Nombre de la tarea):\s+(\S+)", \1)}'
+        - tag: ModifiedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 6e33b5454b5946ea9af211e7556a989b
+      name: AD GPO - Cambios en objetos de directorio
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^5136$|^5137$|^5141$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para cambios en objetos del servicio de directorio (Event IDs 5136/5137/5141).\n    Captura creación (5137), modificación (5136) y eliminación (5141) de objetos AD,\n    incluyendo Group Policy Objects (GPOs), unidades organizativas (OUs), etc.\n    PREREQUISITO: Habilitar 'Audit Directory Service Changes' en la política de auditoría avanzada.\n    NOTA: 5136 y 5137 pueden generar muchos eventos en entornos activos; ajustar según necesidad."
+      tags:
+      - tag: Application
+        value: AD GPO
+      - tag: EventID
+        value: 5136|5137|5141
+      triggers:
+      - uuid: b0f8d69d4b8a46f6a22da6ca9fae936a
+        name: Objeto de directorio CREADO en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^5136$|^5137$|^5141$,,skip],,"5137")=1
+        description: "Se ha creado un nuevo objeto en el Directorio Activo (GPO, OU, etc.).\n    Verifica que la creación sea autorizada."
+        tags:
+        - tag: Category
+          value: GPOChange
+        - tag: Action
+          value: ObjectCreated
+        - tag: ObjectDN
+          value: '{{ITEM.VALUE}.regsub("(?:Object Name|Nombre de objeto):\s+(\S+)", \1)}'
+        - tag: ObjectClass
+          value: '{{ITEM.VALUE}.regsub("(?:Object Class|Clase de objeto):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+      - uuid: 8e46f1f7125a4ea8b20594caad8d8f03
+        name: Objeto de directorio MODIFICADO en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^5136$|^5137$|^5141$,,skip],,"5136")=1
+        description: "Un objeto del Directorio Activo ha sido modificado (GPO, OU, usuario, etc.).\n    Revisa el atributo modificado y el autor del cambio."
+        tags:
+        - tag: Category
+          value: GPOChange
+        - tag: Action
+          value: ObjectModified
+        - tag: ObjectDN
+          value: '{{ITEM.VALUE}.regsub("(?:Object Name|Nombre de objeto):\s+(\S+)", \1)}'
+        - tag: ObjectClass
+          value: '{{ITEM.VALUE}.regsub("(?:Object Class|Clase de objeto):\s+(\S+)", \1)}'
+        - tag: AttributeModified
+          value: '{{ITEM.VALUE}.regsub("(?:LDAP Display Name|Nombre para mostrar LDAP):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+      - uuid: 771d821dd7a64abc8102c7a8b3099bc2
+        name: Objeto de directorio ELIMINADO en {HOST.NAME}
+        priority: WARNING
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^5136$|^5137$|^5141$,,skip],,"5141")=1
+        description: "Un objeto del Directorio Activo ha sido eliminado (GPO, OU, etc.).\n    Esta acción puede ser irreversible. Verifica inmediatamente."
+        tags:
+        - tag: Category
+          value: GPOChange
+        - tag: Action
+          value: ObjectDeleted
+        - tag: ObjectDN
+          value: '{{ITEM.VALUE}.regsub("(?:Object Name|Nombre de objeto):\s+(\S+)", \1)}'
+        - tag: ObjectClass
+          value: '{{ITEM.VALUE}.regsub("(?:Object Class|Clase de objeto):\s+(\S+)", \1)}'
+        - tag: DeletedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: 8a50c1b04caa43989c1202289397ab6a
+      name: AD GPO - Confianzas de dominio
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4706$|^4707$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para la creación (4706) y eliminación (4707) de confianzas de dominio.\n    Los cambios en confianzas afectan al perímetro de seguridad del dominio.\n    PROBLEM cuando se crea una confianza (4706), se resuelve cuando se elimina (4707)."
+      tags:
+      - tag: Application
+        value: AD GPO
+      - tag: EventID
+        value: 4706|4707
+      triggers:
+      - uuid: 2d904dcbfc47467a8b99c623ec51a870
+        name: Nueva confianza de dominio creada en {HOST.NAME}
+        priority: HIGH
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4706$|^4707$,,skip],,"4706")=1
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4706$|^4707$,,skip],,"4707")=1
+        correlation_mode: TAG_VALUE
+        correlation_tag: TrustedDomain
+        description: "Se ha creado una nueva confianza de dominio. Verifica que sea una acción autorizada.\n    Se resuelve AUTOMÁTICAMENTE cuando la confianza es eliminada (4707)."
+        tags:
+        - tag: Category
+          value: DomainTrust
+        - tag: Action
+          value: TrustCreated
+        - tag: TrustedDomain
+          value: '{{ITEM.VALUE}.regsub("(?:Domain Name|Nombre de dominio):\s+(\S+)", \1)}'
+        - tag: CreatedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+      - uuid: 72c1291326f542dd9181b223624191d1
+        name: Confianza de dominio ELIMINADA en {HOST.NAME}
+        priority: AVERAGE
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4706$|^4707$,,skip],,"4707")=1
+        description: Una confianza de dominio ha sido eliminada. Verifica si era una acción planificada.
+        tags:
+        - tag: Category
+          value: DomainTrust
+        - tag: Action
+          value: TrustRemoved
+        - tag: TrustedDomain
+          value: '{{ITEM.VALUE}.regsub("(?:Domain Name|Nombre de dominio):\s+(\S+)", \1)}'
+        - tag: RemovedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+    - uuid: 195d1273a48e4e1490ec4b77236a9233
+      name: AD GPO - Fallo aplicación de Directiva de Grupo
+      type: ZABBIX_ACTIVE
+      key: eventlog[System,,,Microsoft-Windows-GroupPolicy,^1085$|^1055$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: "Fallo en el procesamiento de Directiva de Grupo (System log, source: Microsoft-Windows-GroupPolicy).\n    Event ID 1085: Windows no pudo aplicar la configuración de GP (error genérico).\n    Event ID 1055: GP no pudo obtener el nombre del controlador de dominio.\n    Puede indicar problemas de replicación AD, resolución DNS o conectividad."
+      tags:
+      - tag: Application
+        value: AD GPO
+      - tag: EventID
+        value: 1085|1055
+      triggers:
+      - uuid: 7ad5694e0f674fe0be8cade160713880
+        expression: logeventid(/Windows AD Event Log DC/eventlog[System,,,Microsoft-Windows-GroupPolicy,^1085$|^1055$,,skip],,"1085")=1 or logeventid(/Windows AD Event Log DC/eventlog[System,,,Microsoft-Windows-GroupPolicy,^1085$|^1055$,,skip],,"1055")=1
+        name: Fallo en aplicación de GPO en {HOST.NAME}
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: "El procesamiento de Directiva de Grupo ha fallado en el DC.\n    Comprueba la replicación de AD, la resolución DNS y la conectividad de red."
+        tags:
+        - tag: Category
+          value: GPOChange
+        - tag: Action
+          value: GPProcessingFailed
+    - uuid: 60a01032b6a74fe8a25ec9be6384f1fb
+      name: DHCP - Servidor DHCP no autorizado
+      type: ZABBIX_ACTIVE
+      key: eventlog[DhcpAdminEvents,,Error,,^1053$|^1054$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "Servidor DHCP no autorizado detectado en la red (Event IDs 1053/1054).\n    1053: El servicio DHCP detectó otro servidor DHCP y está cerrándose.\n    1054: El servicio DHCP se ha detenido por detección de servidor no autorizado.\n    ACCIÓN INMEDIATA: Localiza y desconecta el servidor DHCP no autorizado."
+      tags:
+      - tag: Application
+        value: DHCP Server
+      - tag: EventID
+        value: 1053|1054
+      triggers:
+      - uuid: c1001d6543544e48a5bf6031f7036efb
+        expression: logeventid(/Windows AD Event Log DC/eventlog[DhcpAdminEvents,,Error,,^1053$|^1054$,,skip],,"1053")=1 or logeventid(/Windows AD Event Log DC/eventlog[DhcpAdminEvents,,Error,,^1053$|^1054$,,skip],,"1054")=1
+        name: Servidor DHCP no autorizado detectado en {HOST.NAME}
+        priority: HIGH
+        manual_close: 'YES'
+        description: "Se ha detectado un servidor DHCP no autorizado en la red. El servicio DHCP puede haberse detenido.\n    Localiza y desconecta inmediatamente el servidor no autorizado."
+        tags:
+        - tag: Category
+          value: DHCPRogue
+        - tag: Action
+          value: RogueServerDetected
+    - uuid: 9be5995acbb64bebb522acf2512c2a84
+      name: DHCP - Pool de direcciones agotado
+      type: ZABBIX_ACTIVE
+      key: eventlog[DhcpAdminEvents,,Error,,^1063$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "El pool de direcciones IP del servidor DHCP está agotado (Event ID 1063).\n    No hay direcciones IP disponibles para asignar a nuevos clientes.\n    Amplía el rango del scope o reduce el tiempo de arrendamiento."
+      tags:
+      - tag: Application
+        value: DHCP Server
+      - tag: EventID
+        value: '1063'
+      triggers:
+      - uuid: f2398a5caa55438f9392700476b8e49b
+        expression: logeventid(/Windows AD Event Log DC/eventlog[DhcpAdminEvents,,Error,,^1063$,,skip],,"^1063$")=1
+        name: Pool DHCP agotado en {HOST.NAME}
+        priority: HIGH
+        manual_close: 'YES'
+        description: "El pool de direcciones IP está completamente agotado. Los clientes nuevos no podrán obtener IP.\n    Amplía el rango del scope DHCP o reduce el tiempo de arrendamiento."
+        tags:
+        - tag: Category
+          value: DHCPPool
+        - tag: Action
+          value: PoolExhausted
+    - uuid: 9bbf4272138c4a94bc8af42289abeefa
+      name: DHCP - Pool de direcciones casi lleno
+      type: ZABBIX_ACTIVE
+      key: eventlog[DhcpAdminEvents,,Warning,,^1020$,,skip]
+      delay: '120'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "El pool de direcciones IP está casi agotado (Event ID 1020 - Warning).\n    Quedan pocas IPs disponibles en el scope. Planifica la ampliación."
+      tags:
+      - tag: Application
+        value: DHCP Server
+      - tag: EventID
+        value: '1020'
+      triggers:
+      - uuid: f1700c93926b4284aca0f80c318733d2
+        expression: logeventid(/Windows AD Event Log DC/eventlog[DhcpAdminEvents,,Warning,,^1020$,,skip],,"^1020$")=1
+        name: Pool DHCP casi lleno en {HOST.NAME}
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: El scope DHCP está casi lleno. Planifica ampliar el rango de direcciones.
+        dependencies:
+        - name: Pool DHCP agotado en {HOST.NAME}
+          expression: logeventid(/Windows AD Event Log DC/eventlog[DhcpAdminEvents,,Error,,^1063$,,skip],,"^1063$")=1
+          recovery_expression: ''
+        tags:
+        - tag: Category
+          value: DHCPPool
+        - tag: Action
+          value: ScopeNearlyFull
+    - uuid: b6cb0917c1e54d01a64c5ea72ce2a3bd
+      name: DHCP - Error crítico del servicio
+      type: ZABBIX_ACTIVE
+      key: eventlog[DhcpAdminEvents,,Error,,^1008$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "El servicio DHCP se ha detenido por un error crítico (Event ID 1008).\n    El servicio no puede continuar operando. Revisa el log del sistema para más detalles."
+      tags:
+      - tag: Application
+        value: DHCP Server
+      - tag: EventID
+        value: '1008'
+      triggers:
+      - uuid: cbe1b813a34b46c79c5984412b5a1d14
+        expression: logeventid(/Windows AD Event Log DC/eventlog[DhcpAdminEvents,,Error,,^1008$,,skip],,"^1008$")=1
+        name: Servicio DHCP detenido por error en {HOST.NAME}
+        priority: HIGH
+        manual_close: 'YES'
+        description: "El servicio DHCP del servidor se ha detenido por un error crítico.\n    Los clientes no podrán renovar ni obtener nuevas direcciones IP."
+        tags:
+        - tag: Category
+          value: DHCPService
+        - tag: Action
+          value: ServiceStopped
+    - uuid: 87c3d3dc011945ecb0916defa987e205
+      name: DNS - Operaciones sobre zonas
+      type: ZABBIX_ACTIVE
+      key: eventlog[Microsoft-Windows-DNSServer/Audit,,,,^512$|^513$|^514$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para creación (512), eliminación (513) y modificación (514) de zonas DNS.\n    Log: Microsoft-Windows-DNSServer/Audit (habilitado por defecto en Windows Server 2016+).\n    PROBLEM cuando se crea o modifica una zona, se resuelve cuando la zona es eliminada.\n    Los cambios en zonas DNS pueden afectar a la resolución de nombres de todo el dominio."
+      tags:
+      - tag: Application
+        value: DNS Server
+      - tag: EventID
+        value: 512|513|514
+      triggers:
+      - uuid: 7ea0a37531b94636b7bc0dba2fbef106
+        name: Zona DNS ELIMINADA en {HOST.NAME}
+        priority: HIGH
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Microsoft-Windows-DNSServer/Audit,,,,^512$|^513$|^514$,,skip],,"513")=1
+        description: "Una zona DNS ha sido eliminada del servidor. Acción potencialmente crítica.\n    Verifica si la eliminación fue planificada."
+        tags:
+        - tag: Category
+          value: DNSZone
+        - tag: Action
+          value: ZoneDeleted
+        - tag: ZoneName
+          value: '{{ITEM.VALUE}.regsub("(?:Zone|zone)\s+(\S+)\s+was", \1)}'
+        - tag: DeletedBy
+          value: '{{ITEM.VALUE}.regsub("(?:AccountName|AccountName):\s+(\S+)", \1)}'
+      - uuid: 62439840edd941e1b1e2ded961d387a1
+        name: Zona DNS creada en {HOST.NAME}
+        priority: WARNING
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Microsoft-Windows-DNSServer/Audit,,,,^512$|^513$|^514$,,skip],,"512")=1
+        description: Se ha creado una nueva zona DNS. Verifica que sea una acción autorizada.
+        tags:
+        - tag: Category
+          value: DNSZone
+        - tag: Action
+          value: ZoneCreated
+        - tag: ZoneName
+          value: '{{ITEM.VALUE}.regsub("(?:Zone|zone)\s+(\S+)\s+was", \1)}'
+        - tag: CreatedBy
+          value: '{{ITEM.VALUE}.regsub("(?:AccountName):\s+(\S+)", \1)}'
+      - uuid: f2ea2cff57b94857927979faaa5a2c5b
+        name: Zona DNS modificada en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Microsoft-Windows-DNSServer/Audit,,,,^512$|^513$|^514$,,skip],,"514")=1
+        description: 'La configuración de una zona DNS ha sido modificada (ej: transferencias de zona, TTL, etc.).'
+        tags:
+        - tag: Category
+          value: DNSZone
+        - tag: Action
+          value: ZoneModified
+        - tag: ZoneName
+          value: '{{ITEM.VALUE}.regsub("(?:Zone|zone)\s+(\S+)\s+was", \1)}'
+        - tag: ModifiedBy
+          value: '{{ITEM.VALUE}.regsub("(?:AccountName):\s+(\S+)", \1)}'
+    - uuid: 3c9118f808d3415bacd6c5b2e69a1dd0
+      name: DNS - Cambios en registros DNS
+      type: ZABBIX_ACTIVE
+      key: eventlog[Microsoft-Windows-DNSServer/Audit,,,,^515$|^516$,,skip]
+      delay: '60'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: "Item combinado para la creación (515) y eliminación (516) de registros DNS.\n    NOTA: Este item puede ser muy ruidoso si hay actualizaciones dinámicas activas (DHCP/AD).\n    Considera usar este item solo para auditoría de cambios manuales en zonas críticas.\n    Log: Microsoft-Windows-DNSServer/Audit."
+      tags:
+      - tag: Application
+        value: DNS Server
+      - tag: EventID
+        value: 515|516
+      triggers:
+      - uuid: 2bc7ad2aa9024b63a649f35b81629cdf
+        name: Registro DNS ELIMINADO en {HOST.NAME}
+        priority: WARNING
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Microsoft-Windows-DNSServer/Audit,,,,^515$|^516$,,skip],,"516")=1
+        description: Un registro DNS ha sido eliminado manualmente. Verifica que la eliminación sea intencionada.
+        tags:
+        - tag: Category
+          value: DNSRecord
+        - tag: Action
+          value: RecordDeleted
+        - tag: RecordName
+          value: '{{ITEM.VALUE}.regsub("(?:NAME|name):\s+(\S+)", \1)}'
+        - tag: ZoneName
+          value: '{{ITEM.VALUE}.regsub("(?:Zone|zone):\s+(\S+)", \1)}'
+        - tag: DeletedBy
+          value: '{{ITEM.VALUE}.regsub("(?:AccountName):\s+(\S+)", \1)}'
+      - uuid: eee46876560244c79e37e95da39d00c7
+        name: Registro DNS creado en {HOST.NAME}
+        priority: INFO
+        manual_close: 'YES'
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Microsoft-Windows-DNSServer/Audit,,,,^515$|^516$,,skip],,"515")=1
+        description: Se ha creado un nuevo registro DNS. Si las actualizaciones dinámicas están activas, esto puede ser muy frecuente.
+        tags:
+        - tag: Category
+          value: DNSRecord
+        - tag: Action
+          value: RecordCreated
+        - tag: RecordName
+          value: '{{ITEM.VALUE}.regsub("(?:NAME|name):\s+(\S+)", \1)}'
+        - tag: ZoneName
+          value: '{{ITEM.VALUE}.regsub("(?:Zone|zone):\s+(\S+)", \1)}'
+        - tag: CreatedBy
+          value: '{{ITEM.VALUE}.regsub("(?:AccountName):\s+(\S+)", \1)}'
+    - uuid: f2d1e7bb1f214b9ebafdd70065020ed7
+      name: AD Count - Bloqueos de cuenta
+      type: CALCULATED
+      key: ad.count.lockouts.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^4740$|^4767$,,skip],1h,"regexp","4740")
+      description: Número de bloqueos de cuentas en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: Lockouts
+      triggers:
+      - uuid: 7657c2ba92ee42c4840fb3f0b7db888b
+        expression: last(/Windows AD Event Log DC/ad.count.lockouts.1h)>=5
+        name: Alta tasa de bloqueos en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: AVERAGE
+        description: 5 o mas bloqueos en la ultima hora. Puede indicar un ataque o script con credenciales incorrectas.
+        dependencies:
+        - name: Ola masiva de bloqueos en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+          expression: last(/Windows AD Event Log DC/ad.count.lockouts.1h)>=15
+          recovery_expression: ''
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: HighLockoutRate
+        manual_close: 'YES'
+      - uuid: 2d67d4c442944bc487bbfe5fd3001353
+        expression: last(/Windows AD Event Log DC/ad.count.lockouts.1h)>=15
+        name: Ola masiva de bloqueos en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: HIGH
+        description: 15 o mas bloqueos en la ultima hora. Posible ataque en curso.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: MassLockout
+        manual_close: 'YES'
+    - uuid: 733a0acd44714650979f8666f1587e3f
+      name: AD Count - Fallos de autenticación
+      type: CALCULATED
+      key: ad.count.authfail.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^4625$,,skip],1h)
+      description: Número de fallos de autenticación en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: AuthFailures
+      triggers:
+      - uuid: 60c95d2f7dcd46018682f9c46bccb4a7
+        expression: last(/Windows AD Event Log DC/ad.count.authfail.1h)>=20
+        name: Alta tasa de fallos auth en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: AVERAGE
+        description: 20 o mas fallos de autenticacion en la ultima hora.
+        dependencies:
+        - name: Ataque de fuerza bruta en {HOST.NAME} (>={ITEM.VALUE} fallos en 1h)
+          expression: last(/Windows AD Event Log DC/ad.count.authfail.1h)>=100
+          recovery_expression: ''
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: HighFailureRate
+        manual_close: 'YES'
+      - uuid: ca7551b0b42941b79e2ca2494fc8134d
+        expression: last(/Windows AD Event Log DC/ad.count.authfail.1h)>=100
+        name: Ataque de fuerza bruta en {HOST.NAME} (>={ITEM.VALUE} fallos en 1h)
+        priority: HIGH
+        description: 100 o mas fallos de autenticacion en la ultima hora. Posible ataque activo.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: BruteForce
+        manual_close: 'YES'
+    - uuid: 939ac2d72cef43b8ac7ac0075c53b80b
+      name: AD Count - Fallos Kerberos
+      type: CALCULATED
+      key: ad.count.kerberosfail.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^4771$,,skip],1h)
+      description: Número de fallos de preautenticación Kerberos en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: KerberosFail
+      triggers:
+      - uuid: 08b32e71b2fd4da786d7106dab32b74e
+        expression: last(/Windows AD Event Log DC/ad.count.kerberosfail.1h)>=10
+        name: Fallos Kerberos elevados en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: AVERAGE
+        description: 10 o mas fallos de preautenticacion Kerberos en la ultima hora. Posible AS-REP Roasting.
+        dependencies:
+        - name: Posible Kerberoasting en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+          expression: last(/Windows AD Event Log DC/ad.count.kerberosfail.1h)>=50
+          recovery_expression: ''
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: KerberosAttack
+        manual_close: 'YES'
+      - uuid: 2e197965fed542978ef5be39bc159e3c
+        expression: last(/Windows AD Event Log DC/ad.count.kerberosfail.1h)>=50
+        name: Posible Kerberoasting en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: HIGH
+        description: 50 o mas fallos Kerberos en la ultima hora. Alta probabilidad de ataque Kerberoasting.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: KerberosAttack
+        manual_close: 'YES'
+    - uuid: 3c983261f6244a92a3214389cd7859fc
+      name: AD Count - Cambios en usuarios
+      type: CALCULATED
+      key: ad.count.userchanges.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^4720$,,skip],1h)+count(//eventlog[Security,,,,^4722$,,skip],1h)+count(//eventlog[Security,,,,^4725$,,skip],1h)+count(//eventlog[Security,,,,^4726$,,skip],1h)+count(//eventlog[Security,,,,^4738$,,skip],1h)
+      description: Total de cambios en cuentas de usuario en la última hora (crear, habilitar, deshabilitar, eliminar, modificar).
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: UserChanges
+    - uuid: 4aab35f7b3794add8a625653e1bb4f13
+      name: AD Count - Cambios en grupos
+      type: CALCULATED
+      key: ad.count.groupchanges.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^4728$,,skip],1h)+count(//eventlog[Security,,,,^4729$,,skip],1h)+count(//eventlog[Security,,,,^4732$,,skip],1h)+count(//eventlog[Security,,,,^4733$,,skip],1h)+count(//eventlog[Security,,,,^4756$,,skip],1h)+count(//eventlog[Security,,,,^4757$,,skip],1h)
+      description: Total de cambios en membresía de grupos en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: GroupChanges
+    - uuid: fd778f7df89e407d88ba4a66b76f8c0e
+      name: AD Count - Resets y cambios de contraseña
+      type: CALCULATED
+      key: ad.count.passwordevents.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^4723$,,skip],1h)+count(//eventlog[Security,,,,^4724$,,skip],1h)
+      description: Total de eventos de contraseña en la última hora (cambios e intentos de reset).
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: PasswordEvents
+    - uuid: c724604687474d46849b4efb393b0e34
+      name: AD Count - Eventos críticos de seguridad
+      type: CALCULATED
+      key: ad.count.critical.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^1102$,,skip],1h)+count(//eventlog[Security,,,,^4697$,,skip],1h)+count(//eventlog[Security,,,,^4698$,,skip],1h)+count(//eventlog[Security,,,,^4648$,,skip],1h)
+      description: Total de eventos críticos de seguridad en la última hora (log borrado, servicios instalados, tareas programadas, credenciales explícitas).
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: CriticalEvents
+      triggers:
+      - uuid: 30a8d5d449724b399bf9e4daac06d5b0
+        expression: last(/Windows AD Event Log DC/ad.count.critical.1h)>=3
+        name: Multiples eventos criticos en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: HIGH
+        description: 3 o mas eventos criticos de seguridad en la ultima hora. Revisa el log urgentemente.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: CriticalActivity
+        manual_close: 'YES'
+    - uuid: 4f1c4ca570294df595b5ebf84801bed2
+      name: AD Count - Cambios GPO y objetos AD
+      type: CALCULATED
+      key: ad.count.gpochanges.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Security,,,,^5136$|^5137$|^5141$,,skip],1h)
+      description: Total de cambios en objetos del Directorio Activo (GPOs, OUs, etc.) en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: GPOChanges
+      triggers:
+      - uuid: d8988923455242b2b6fe1e988c7c10e2
+        expression: last(/Windows AD Event Log DC/ad.count.gpochanges.1h)>=10
+        name: Alta actividad en objetos AD en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: 10 o mas cambios en objetos AD en la ultima hora. Puede indicar actividad inusual o un script.
+        tags:
+        - tag: Category
+          value: GPOChange
+        - tag: Action
+          value: HighADActivity
+    - uuid: 65be51f5005b476bb6b077c65ecbd22a
+      name: AD Count - Cambios en DNS
+      type: CALCULATED
+      key: ad.count.dnschanges.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: count(//eventlog[Microsoft-Windows-DNSServer/Audit,,,,^512$|^513$|^514$,,skip],1h)+count(//eventlog[Microsoft-Windows-DNSServer/Audit,,,,^515$|^516$,,skip],1h)
+      description: Total de cambios en zonas y registros DNS en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: DNSChanges
