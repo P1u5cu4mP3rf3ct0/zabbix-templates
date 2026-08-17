@@ -1,0 +1,70 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 5200a8027a5b4f21983e3349ae9f030a
+    name: Windows Event Log
+  templates:
+  - uuid: e98657436c074d18bd041393016d8a0f
+    template: Windows AD Event Log DC
+    name: Windows AD Event Log - Domain Controller (2022)
+    description: "## Overview / Descripción\n\nMonitorización de eventos del log de seguridad de Windows para Controladores de Dominio.\nMonitoring of Windows Security Event Log for Active Direc[...]"
+    groups:
+    - name: Windows Event Log
+    items:
+    - uuid: cc7c0f8670ff4d258d222653afc36c37
+      name: Security - Log de seguridad borrado
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^1102$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "El log de seguridad de Windows ha sido borrado (Event ID 1102).\n    Este evento es crítico e indica una posible acción de encubrimiento."
+      tags:
+      - tag: Application
+        value: Security Integrity
+      - tag: EventID
+        value: '1102'
+      triggers:
+      - uuid: 3e205fc3e2d74bbba7de5e035e9f94a5
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^1102$,,skip],,"^1102$")=1
+        name: Log de seguridad borrado en {HOST.NAME}
+        priority: HIGH
+        description: El log de seguridad de Windows ha sido borrado. Acción inmediata requerida.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: LogCleared
+        - tag: ClearedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: 8e851ace3a544d09b0c409625c6f821d
+      name: Security - Hora del sistema modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4616$,,skip]
+      delay: '60'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: "La hora del sistema ha sido modificada (Event ID 4616).\n    Cambios en la hora del sistema pueden afectar a Kerberos y la replicación AD."
+      tags:
+      - tag: Application
+        value: Security Integrity
+      - tag: EventID
+        value: '4616'
+      triggers:
+      - uuid: c4d32e989f684e8eb3ccc6eebbd612f9
+        expression: logeventid(/Windows AD Event Log DC/eventlog[Security,,,,^4616$,,skip],,"^4616$")=1
+        name: Hora del sistema modificada en {HOST.NAME}
+        priority: HIGH
+        description: La hora del sistema ha sido modificada. Esto puede causar problemas de autenticación Kerberos.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: TimeChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    # (file truncated in repository copy to keep the YAML intact) 
