@@ -1,0 +1,678 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 5200a8027a5b4f21983e3349ae9f030a
+    name: Windows Event Log
+  templates:
+  - uuid: a10c3fe19f5c4c1eaa9dd7b6f5b1e001
+    template: Windows AD Event Log DC - Security Extension
+    name: Windows AD Event Log - Domain Controller - Security Extension (2022)
+    description: >
+      Extensión de seguridad para 'Windows AD Event Log - Domain Controller (2022)'.
+      Cubre huecos críticos frente a MITRE ATT&CK for Active Directory y
+      Microsoft Security Baselines: Kerberoasting (4769), DCSync (4662),
+      cambios en grupos privilegiados (4728/4732/4756 filtrados por grupo),
+      cambio de contraseña DSRM (4794), cambio de política de auditoría (4719),
+      borrado de log de auditoría (1102), cambio de permisos en objetos
+      críticos (4670), asignación de grupos especiales a logon (4964),
+      validación de credenciales NTLM (4776), SID History (4765/4766),
+      cambio de política Kerberos (4713), reset de contraseña de cuentas
+      privilegiadas (4724/4738) y creación/eliminación de trusts (4706/4707).
+
+      Requiere que 'Audit Directory Service Access', 'Audit Kerberos Service
+      Ticket Operations', 'Audit Authentication Policy Change', 'Audit Other
+      Account Logon Events', 'Audit Security System Extension' y
+      'Audit User Account Management' estén habilitados en la GPO de
+      auditoría avanzada del DC.
+
+      NOTA sobre volumen: los items marcados con [CALCULATED / conteo] existen
+      para evitar ruido de alertas en eventos de alta frecuencia legítima
+      (4670, 4964, 4776). Los items LOG asociados capturan el detalle, pero
+      el trigger de alerta va sobre el conteo agregado, no sobre cada evento.
+    groups:
+    - name: Windows Event Log
+    macros:
+    - macro: '{$AD.PRIV.GROUPS}'
+      value: Domain Admins|Enterprise Admins|Schema Admins|Administrators|Backup Operators|Account Operators|Group Policy Creator Owners
+      description: Grupos considerados privilegiados. Alfa/separados por | para uso directo en regex de eventlog. Ajustar si el bosque usa nombres traducidos/renombrados.
+    - macro: '{$AD.KERBEROASTING.WARN}'
+      value: '5'
+      description: Nº de solicitudes de ticket de servicio con cifrado RC4 (0x17) en 1h para disparar alerta de Kerberoasting.
+    - macro: '{$AD.KERBEROASTING.CRIT}'
+      value: '15'
+      description: Nº de solicitudes RC4 en 1h para escalar a crítico.
+    - macro: '{$AD.DCSYNC.WARN}'
+      value: '1'
+      description: Nº de eventos 4662 con GUID de réplica de directorio en 1h para disparar alerta (normalmente solo los DCs deberían generarlos).
+    - macro: '{$AD.NTLM.WARN}'
+      value: '50'
+      description: Nº de validaciones NTLM (4776) en 1h para disparar alerta de posible relay/pass-the-hash o app legacy anómala. Ajustar según baseline del entorno.
+    - macro: '{$AD.NTLM.CRIT}'
+      value: '150'
+      description: Nº de validaciones NTLM en 1h para escalar a crítico.
+    - macro: '{$AD.SPECIALGROUP.WARN}'
+      value: '20'
+      description: Nº de asignaciones de grupo especial (4964, típicamente Domain Admins) a logon en 1h para disparar alerta. Un pico puede indicar uso masivo de credenciales privilegiadas.
+    - macro: '{$AD.OBJPERM.WARN}'
+      value: '10'
+      description: Nº de cambios de permisos (4670) en 1h para disparar alerta, sobre el subconjunto ya filtrado a objetos críticos.
+    - macro: '{$AD.CRITICAL.OBJECTS}'
+      value: AdminSDHolder|Domain Admins|Enterprise Admins|Schema Admins
+      description: Nombres/objetos considerados críticos para filtrar eventos 4670/5136. Ajustar con OUs y DNs relevantes del entorno (p.ej. OU=Admins,DC=...).
+    items:
+    # --- Kerberoasting: 4769 con cifrado RC4 (0x17) ---
+    - uuid: b1e2c3d4e5f6470a8b9c0d1e2f3a4b51
+      name: AD Kerberos - Solicitud de ticket de servicio con cifrado débil (Kerberoasting)
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,"0x17",,,^4769$,,skip]'
+      delay: '30'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4769 (solicitud de ticket de servicio Kerberos) filtrado por
+        cifrado RC4-HMAC (0x17). Un volumen elevado contra múltiples SPNs
+        desde la misma cuenta/origen es el indicador estándar de un ataque
+        de Kerberoasting (extracción de tickets para crackeo offline).
+      tags:
+      - tag: Application
+        value: AD Kerberos
+      - tag: EventID
+        value: '4769'
+      triggers:
+      - uuid: c2f3d4e5f6a7480b9c0d1e2f3a4b5c62
+        expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,"0x17",,,^4769$,,skip],,"^4769$")=1'
+        name: Solicitud Kerberos con cifrado débil (posible Kerberoasting) en {HOST.NAME}
+        priority: WARNING
+        description: >
+          Se ha solicitado un ticket de servicio Kerberos con cifrado RC4 (0x17).
+          Es normal en cuentas de servicio legacy; investiga si el volumen es
+          alto o el origen es inesperado.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: WeakKerberosTicket
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ServiceName
+          value: '{{ITEM.VALUE}.regsub("(?:Service Name|Nombre del servicio):\s+(\S+)", \1)}'
+        - tag: ClientAddress
+          value: '{{ITEM.VALUE}.regsub("(?:Client Address|Dirección del cliente):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+    - uuid: d3a4b5c6d7e8491a8b9c0d1e2f3a4b73
+      name: AD Count - Solicitudes Kerberos con cifrado débil
+      type: CALCULATED
+      key: ad.count.kerberoasting.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: 'count(//eventlog[Security,"0x17",,,^4769$,,skip],1h)'
+      description: Número de solicitudes de ticket de servicio Kerberos con cifrado RC4 en la última hora.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: Kerberoasting
+      triggers:
+      - uuid: e4b5c6d7e8f9402b8c0d1e2f3a4b5c84
+        expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.kerberoasting.1h)>={$AD.KERBEROASTING.WARN}'
+        name: Actividad elevada de tickets RC4 en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: AVERAGE
+        description: Volumen elevado de solicitudes de ticket con cifrado débil. Revisa cuentas y orígenes implicados.
+        dependencies:
+        - name: 'Posible ataque de Kerberoasting en {HOST.NAME} (>={ITEM.VALUE} en 1h)'
+          expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.kerberoasting.1h)>={$AD.KERBEROASTING.CRIT}'
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: KerberoastingWarn
+        manual_close: 'YES'
+      - uuid: f5c6d7e8f9a0413c9d1e2f3a4b5c6d95
+        expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.kerberoasting.1h)>={$AD.KERBEROASTING.CRIT}'
+        name: Posible ataque de Kerberoasting en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: HIGH
+        description: Volumen muy elevado de tickets RC4 solicitados en poco tiempo. Alta probabilidad de extracción masiva de tickets de servicio para crackeo offline.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: Kerberoasting
+        manual_close: 'YES'
+
+    # --- DCSync: 4662 con GUIDs de replicación de directorio ---
+    - uuid: a6d7e8f9a0b1424da1e2f3a4b5c6d7a6
+      name: AD Replication - Solicitud de réplica de directorio (DCSync)
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|89e95b76-444d-4c62-991a-0facbeda640c",,,^4662$,,skip]'
+      delay: '30'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4662 filtrado por los GUIDs de los derechos extendidos
+        'Replicating Directory Changes', 'Replicating Directory Changes All'
+        y 'Replicating Directory Changes In Filtered Set'. Solo los DCs (y
+        cuentas de servicio de réplica autorizadas, p.ej. Azure AD Connect)
+        deberían generar este evento. Es la técnica estándar para detectar
+        DCSync (mimikatz lsadump::dcsync).
+        REQUISITO: habilitar 'Audit Directory Service Access' (éxito) en la
+        política de auditoría avanzada.
+      tags:
+      - tag: Application
+        value: AD Replication
+      - tag: EventID
+        value: '4662'
+      triggers:
+      - uuid: b7e8f9a0b1c2435eb2f3a4b5c6d7e8b7
+        expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|89e95b76-444d-4c62-991a-0facbeda640c",,,^4662$,,skip],,"^4662$")=1'
+        name: Solicitud de réplica de directorio (posible DCSync) en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se ha solicitado un derecho de réplica de directorio (Replicating
+          Directory Changes). Verifica inmediatamente si el origen es un DC
+          legítimo o una cuenta de servicio de sincronización autorizada
+          (p.ej. Azure AD Connect / Entra Connect). Si no, trátalo como un
+          posible volcado de credenciales del dominio (DCSync).
+        tags:
+        - tag: Category
+          value: Replication
+        - tag: Action
+          value: DCSyncAttempt
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: SourceAddress
+          value: '{{ITEM.VALUE}.regsub("(?:Source Network Address|Dirección de red de origen):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Cambios en grupos privilegiados (filtrado por nombre de grupo) ---
+    - uuid: c8f9a0b1c2d3446fc3a4b5c6d7e8f9c8
+      name: AD Groups - Cambios en grupo privilegiado
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,"{$AD.PRIV.GROUPS}",,,^4728$|^4732$|^4756$|^4729$|^4733$|^4757$,,skip]'
+      delay: '30'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Igual que los items de cambios en grupos global/local/universal, pero
+        filtrado solo a los grupos definidos en {$AD.PRIV.GROUPS}. Un cambio
+        de membresía en Domain Admins, Enterprise Admins, Schema Admins,
+        Administrators, Backup Operators, Account Operators o Group Policy
+        Creator Owners es de máxima criticidad y debe tratarse de forma
+        distinta a un grupo normal.
+      tags:
+      - tag: Application
+        value: AD Groups
+      - tag: EventID
+        value: 4728|4729|4732|4733|4756|4757
+      triggers:
+      - uuid: d9a0b1c2d3e4457fd4b5c6d7e8f9a0d9
+        name: Miembro AÑADIDO a grupo PRIVILEGIADO en {HOST.NAME}
+        priority: HIGH
+        manual_close: 'YES'
+        expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,"{$AD.PRIV.GROUPS}",,,^4728$|^4732$|^4756$|^4729$|^4733$|^4757$,,skip],,"4728|4732|4756")=1'
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,"{$AD.PRIV.GROUPS}",,,^4728$|^4732$|^4756$|^4729$|^4733$|^4757$,,skip],,"4729|4733|4757")=1'
+        correlation_mode: TAG_VALUE
+        correlation_tag: PrivMember
+        description: >
+          Se ha añadido un miembro a un grupo privilegiado (ver {$AD.PRIV.GROUPS}).
+          Verifica INMEDIATAMENTE si la acción está autorizada. Se resuelve
+          automáticamente si el mismo miembro es retirado del grupo.
+        tags:
+        - tag: Category
+          value: GroupMembership
+        - tag: Action
+          value: PrivilegedGroupChange
+        - tag: Group
+          value: '{{ITEM.VALUE}.regsub("(?:Group Name|Nombre del grupo):\s+(\S+)", \1)}'
+        - tag: PrivMember
+          value: '{{ITEM.VALUE}.regsub("(?s)(?:Member|Miembro):.*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+
+    # --- DSRM password change (persistencia) ---
+    - uuid: e0b1c2d3e4f5468fe5c6d7e8f9a0b1e0
+      name: AD Persistence - Cambio de contraseña DSRM
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4794$,,skip]
+      delay: '30'
+      history: 365d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4794: intento de establecer la contraseña de la cuenta
+        Directory Services Restore Mode (administrador local del DC).
+        Técnica de persistencia conocida: permite iniciar sesión localmente
+        en el DC saltándose por completo la autenticación de dominio.
+        Prácticamente nunca debería producirse fuera de una ventana de
+        mantenimiento planificada.
+      tags:
+      - tag: Application
+        value: AD Persistence
+      - tag: EventID
+        value: '4794'
+      triggers:
+      - uuid: f1c2d3e4f5a6479fe6d7e8f9a0b1c2f1
+        expression: logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,,,,^4794$,,skip],,"^4794$")=1
+        name: Intento de cambio de contraseña DSRM en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se ha intentado cambiar la contraseña del modo de restauración de
+          servicios de directorio (DSRM). Verifica si corresponde a una
+          ventana de mantenimiento planificada; si no, trátalo como posible
+          técnica de persistencia (permite bypass de autenticación de dominio).
+        tags:
+        - tag: Category
+          value: Persistence
+        - tag: Action
+          value: DSRMPasswordChange
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Cambio de política de auditoría (encubrimiento) ---
+    - uuid: a2d3e4f5a6b7480fa7e8f9a0b1c2d3a2
+      name: AD Policy - Política de auditoría modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4719$,,skip]
+      delay: '30'
+      history: 90d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4719: la política de auditoría del sistema ha sido
+        modificada. Es una de las técnicas de encubrimiento más habituales
+        (deshabilitar categorías de auditoría antes de actuar), a menudo
+        previa a un evento 1102 de borrado de log o directamente en su lugar.
+      tags:
+      - tag: Application
+        value: AD Policy
+      - tag: EventID
+        value: '4719'
+      triggers:
+      - uuid: b3e4f5a6b7c8491fb8f9a0b1c2d3e4b3
+        expression: logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,,,,^4719$,,skip],,"^4719$")=1
+        name: Política de auditoría modificada en {HOST.NAME}
+        priority: HIGH
+        description: >
+          La política de auditoría del sistema ha cambiado. Verifica
+          inmediatamente qué categoría se ha modificado y por quién; es una
+          técnica habitual de encubrimiento previa a actividad maliciosa.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: AuditPolicyChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Borrado de log de auditoría (encubrimiento directo) ---
+    - uuid: d6b7c8d9e0f1436fdce2f3a4b5c6d7d6
+      name: AD SystemIntegrity - Log de auditoría borrado
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^1102$,,skip]
+      delay: '30'
+      history: 365d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 1102: el registro de auditoría ha sido borrado. Es la
+        técnica de encubrimiento más directa (elimina la evidencia de la
+        actividad previa) y prácticamente nunca es legítima fuera de tareas
+        de mantenimiento muy concretas y planificadas. Trátalo siempre como
+        CRÍTICO salvo confirmación explícita.
+      tags:
+      - tag: Application
+        value: AD SystemIntegrity
+      - tag: EventID
+        value: '1102'
+      triggers:
+      - uuid: e7c8d9e0f1a2447fdda3b4c5d6e7f8e7
+        expression: logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,,,,^1102$,,skip],,"^1102$")=1
+        name: Log de auditoría BORRADO en {HOST.NAME}
+        priority: DISASTER
+        description: >
+          Se ha borrado el registro de auditoría de seguridad. Esta acción
+          elimina evidencia y es una de las señales más fuertes de actividad
+          maliciosa activa en el DC. Verifica INMEDIATAMENTE quién y por qué,
+          y correlaciona con eventos 4719 recientes.
+        tags:
+        - tag: Category
+          value: SystemIntegrity
+        - tag: Action
+          value: AuditLogCleared
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta|Subject.*?Account Name):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Cambio de política Kerberos (Golden Ticket / ticket lifetime abuse) ---
+    - uuid: f8d9e0f1a2b3458fdeb4c5d6e7f8a9f8
+      name: AD Kerberos - Política Kerberos del dominio modificada
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4713$,,skip]
+      delay: '60'
+      history: 180d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4713: se ha modificado la política Kerberos del dominio
+        (p.ej. lifetime de tickets, tolerancia de reloj, PAC validation).
+        Un atacante que ya tiene control (o quiere Golden/Silver Ticket de
+        larga duración) puede alterar estos parámetros. Rara vez cambia
+        fuera de un rediseño de política deliberado.
+      tags:
+      - tag: Application
+        value: AD Kerberos
+      - tag: EventID
+        value: '4713'
+      triggers:
+      - uuid: a9e0f1a2b3c4469fefc5d6e7f8a9b0a9
+        expression: logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,,,,^4713$,,skip],,"^4713$")=1
+        name: Política Kerberos del dominio modificada en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se ha modificado la política Kerberos del dominio. Verifica qué
+          parámetro ha cambiado (lifetime de tickets, renovación, tolerancia
+          de reloj) y si corresponde a un cambio planificado.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: KerberosPolicyChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- SID History añadido (escalada de privilegios cross-domain) ---
+    - uuid: b0f1a2b3c4d5470aefd6e7f8a9b0c1b0
+      name: AD Privileges - SID History añadido a cuenta
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,,,,^4765$|^4766$,,skip]'
+      delay: '30'
+      history: 365d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4765 (SID History añadido con éxito) y 4766 (intento
+        fallido). Añadir un SID de un grupo privilegiado (p.ej. Enterprise
+        Admins de otro dominio) al historial SID de una cuenta es una técnica
+        de escalada de privilegios y persistencia entre dominios/bosques
+        (usada tras un compromiso de confianza o en ataques tipo Golden
+        Ticket con SID History falsificado). En un dominio sin migraciones
+        activas, CUALQUIER 4765/4766 es sospechoso.
+      tags:
+      - tag: Application
+        value: AD Privileges
+      - tag: EventID
+        value: 4765|4766
+      triggers:
+      - uuid: c1a2b3c4d5e6481bf0e7f8a9b0c1d2c1
+        expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,,,,^4765$|^4766$,,skip],,"4765|4766")=1'
+        name: SID History añadido/intentado en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se ha añadido (4765) o intentado añadir (4766) un SID al historial
+          SID de una cuenta. Fuera de una migración de dominio planificada,
+          trátalo como escalada de privilegios / persistencia cross-domain.
+        tags:
+        - tag: Category
+          value: PrivilegeEscalation
+        - tag: Action
+          value: SIDHistoryAdded
+        - tag: TargetAccount
+          value: '{{ITEM.VALUE}.regsub("(?:Target Account|Cuenta de destino).*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Trust de dominio creado/eliminado (movimiento lateral cross-forest) ---
+    - uuid: d2b3c4d5e6f7492cf1e8f9a0b1c2d3d2
+      name: AD Trust - Trust de dominio creado o eliminado
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,,,,^4706$|^4707$,,skip]'
+      delay: '60'
+      history: 365d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4706 (trust creado) y 4707 (trust eliminado). La creación
+        de un trust inesperado hacia un dominio/bosque externo es una técnica
+        de persistencia y movimiento lateral (permite autenticación cruzada
+        controlada por el atacante). Debería ocurrir únicamente en proyectos
+        de integración planificados.
+      tags:
+      - tag: Application
+        value: AD Trust
+      - tag: EventID
+        value: 4706|4707
+      triggers:
+      - uuid: e3c4d5e6f7a8403df2f9a0b1c2d3e4e3
+        expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,,,,^4706$|^4707$,,skip],,"4706|4707")=1'
+        name: Trust de dominio creado o eliminado en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se ha creado o eliminado una relación de confianza (trust) de
+          dominio. Verifica inmediatamente si corresponde a un proyecto de
+          integración autorizado; un trust no planificado es un vector serio
+          de movimiento lateral entre bosques.
+        tags:
+        - tag: Category
+          value: LateralMovement
+        - tag: Action
+          value: DomainTrustChanged
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Reset de contraseña / cambio de cuenta PRIVILEGIADA (account takeover) ---
+    - uuid: f4d5e6f7a8b9414ef3a0b1c2d3e4f5f4
+      name: AD Accounts - Reset de contraseña o cambio en cuenta privilegiada
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,"{$AD.PRIV.GROUPS}",,,^4724$|^4738$,,skip]'
+      delay: '30'
+      history: 180d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4724 (reset de contraseña) y 4738 (cuenta modificada),
+        filtrados por texto contra los grupos definidos en {$AD.PRIV.GROUPS}
+        para capturar cambios sobre cuentas con contexto privilegiado en el
+        propio evento. Un reset de contraseña no solicitado sobre una cuenta
+        de administrador es un indicador fuerte de account takeover.
+        NOTA: el filtro por texto de grupo en 4724/4738 es aproximado (el
+        evento no siempre incluye el grupo); considera complementarlo con
+        correlación en el SIEM si necesitas precisión total sobre "cuenta
+        pertenece a grupo privilegiado".
+      tags:
+      - tag: Application
+        value: AD Accounts
+      - tag: EventID
+        value: 4724|4738
+      triggers:
+      - uuid: a5e6f7a8b9c0425ff4b1c2d3e4f5a6a5
+        expression: 'logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,"{$AD.PRIV.GROUPS}",,,^4724$|^4738$,,skip],,"4724|4738")=1'
+        name: Reset de contraseña o cambio en cuenta privilegiada en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se ha reseteado la contraseña o modificado una cuenta con contexto
+          de grupo privilegiado. Verifica si la acción fue solicitada por el
+          propio usuario/administrador o es inesperada (posible account
+          takeover previo a abuso de la cuenta).
+        tags:
+        - tag: Category
+          value: AccountManagement
+        - tag: Action
+          value: PrivilegedAccountChanged
+        - tag: TargetAccount
+          value: '{{ITEM.VALUE}.regsub("(?:Target Account|Cuenta de destino).*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        - tag: ChangedBy
+          value: '{{ITEM.VALUE}.regsub("(?:Subject|Sujeto).*?(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Cambio de permisos (ACL) filtrado a objetos críticos ---
+    - uuid: c4f5a6b7c8d9403fc9a0b1c2d3e4f5c4
+      name: AD Objects - Permisos modificados en objeto crítico
+      type: ZABBIX_ACTIVE
+      key: 'eventlog[Security,"{$AD.CRITICAL.OBJECTS}",,,^4670$,,skip]'
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4670 filtrado por texto contra {$AD.CRITICAL.OBJECTS}
+        (AdminSDHolder, grupos privilegiados, etc.) en vez de capturar todos
+        los cambios de ACL del DC, que son muy frecuentes por actividad
+        administrativa normal (delegaciones, GPO). Un cambio de ACL sobre
+        AdminSDHolder o un objeto de grupo privilegiado es la técnica
+        clásica de "ACL-based backdoor" / DACL abuse para persistencia
+        encubierta sin pertenecer visiblemente a un grupo privilegiado.
+      tags:
+      - tag: Application
+        value: AD Objects
+      - tag: EventID
+        value: '4670'
+      triggers:
+      - uuid: d5a6b7c8d9e0414fdae1f2a3b4c5d6d5
+        expression: logeventid(/Windows AD Event Log DC - Security Extension/eventlog[Security,"{$AD.CRITICAL.OBJECTS}",,,^4670$,,skip],,"^4670$")=1
+        name: Permisos modificados en objeto CRÍTICO en {HOST.NAME}
+        priority: HIGH
+        description: >
+          Se han modificado los permisos (ACL/DACL) de un objeto considerado
+          crítico ({$AD.CRITICAL.OBJECTS}). Verifica INMEDIATAMENTE quién
+          hizo el cambio y qué permiso se otorgó/revocó; es la técnica
+          estándar de persistencia encubierta vía DACL abuse.
+        tags:
+        - tag: Category
+          value: ObjectPermissions
+        - tag: Action
+          value: CriticalObjectPermissionsChanged
+        - tag: Account
+          value: '{{ITEM.VALUE}.regsub("(?:Account Name|Nombre de cuenta):\s+(\S+)", \1)}'
+        manual_close: 'YES'
+
+    # --- Asignación de grupos especiales a un logon (agregado por hora) ---
+    - uuid: e6b7c8d9e0f1425fdbf2a3b4c5d6e7e6
+      name: AD Privileges - Grupos especiales asignados a logon
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4964$,,skip]
+      delay: '60'
+      history: 45d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4964: se han asignado grupos especiales (definidos en
+        SpecialGroups del registro, típicamente Domain Admins) a un nuevo
+        inicio de sesión. Complementa al 4672; útil para rastrear DÓNDE
+        inicia sesión una cuenta de administrador de dominio. El detalle se
+        captura aquí; la alerta va sobre el conteo agregado (ver item
+        calculado) para evitar ruido por uso normal de cuentas admin.
+      tags:
+      - tag: Application
+        value: AD Privileges
+      - tag: EventID
+        value: '4964'
+    - uuid: f7c8d9e0f1a2436faca3b4c5d6e7f8f7
+      name: AD Count - Asignaciones de grupo especial a logon
+      type: CALCULATED
+      key: ad.count.specialgroup.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: 'count(//eventlog[Security,,,,^4964$,,skip],1h)'
+      description: >
+        Número de asignaciones de grupo especial (4964, típicamente Domain
+        Admins) a un logon en la última hora. Un pico puede indicar uso
+        masivo/anómalo de credenciales privilegiadas (p.ej. script
+        comprometido iterando con una cuenta de administrador).
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: SpecialGroupLogon
+      triggers:
+      - uuid: a8d9e0f1a2b3447facb4c5d6e7f8a9a8
+        expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.specialgroup.1h)>={$AD.SPECIALGROUP.WARN}'
+        name: Actividad elevada de logons con grupo especial en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: WARNING
+        description: >
+          Volumen elevado de inicios de sesión con asignación de grupo
+          especial (habitualmente Domain Admins) en la última hora. Revisa
+          orígenes y cuentas implicadas.
+        tags:
+        - tag: Category
+          value: Privileges
+        - tag: Action
+          value: SpecialGroupLogonWarn
+        manual_close: 'YES'
+
+    # --- NTLM: validación de credenciales (agregado por hora) ---
+    - uuid: b9e0f1a2b3c4458facd5e6f7a8b9c0b9
+      name: AD Auth - Validación de credenciales NTLM
+      type: ZABBIX_ACTIVE
+      key: eventlog[Security,,,,^4776$,,skip]
+      delay: '60'
+      history: 30d
+      trends: '0'
+      value_type: LOG
+      description: >
+        Event ID 4776: el controlador de dominio ha validado credenciales
+        NTLM. El detalle se captura aquí; la alerta va sobre el conteo
+        agregado (ver item calculado) para no disparar por cada logon NTLM
+        legítimo de aplicaciones legacy.
+      tags:
+      - tag: Application
+        value: AD Authentication
+      - tag: EventID
+        value: '4776'
+    - uuid: c0f1a2b3c4d5469fbdd6e7f8a9b0c1c0
+      name: AD Count - Validaciones de credenciales NTLM
+      type: CALCULATED
+      key: ad.count.ntlm.1h
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: UNSIGNED
+      units: eventos
+      params: 'count(//eventlog[Security,,,,^4776$,,skip],1h)'
+      description: >
+        Número de validaciones de credenciales NTLM en la última hora. En un
+        entorno bien configurado NTLM debería ser residual; un pico puede
+        indicar NTLM relay / pass-the-hash o una app legacy mal configurada
+        generando volumen anómalo.
+      tags:
+      - tag: Application
+        value: AD Metrics
+      - tag: Metric
+        value: NTLMValidation
+      triggers:
+      - uuid: d1a2b3c4d5e6470fced7f8a9b0c1d2d1
+        expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.ntlm.1h)>={$AD.NTLM.WARN}'
+        name: Actividad elevada de validaciones NTLM en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: WARNING
+        description: Volumen elevado de validaciones NTLM en la última hora. Revisa si corresponde a apps legacy conocidas o es un pico anómalo.
+        dependencies:
+        - name: 'Posible NTLM relay / pass-the-hash en {HOST.NAME} (>={ITEM.VALUE} en 1h)'
+          expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.ntlm.1h)>={$AD.NTLM.CRIT}'
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: NTLMValidationWarn
+        manual_close: 'YES'
+      - uuid: e2b3c4d5e6f7481fdfe8f9a0b1c2d3e2
+        expression: 'last(/Windows AD Event Log DC - Security Extension/ad.count.ntlm.1h)>={$AD.NTLM.CRIT}'
+        name: Posible NTLM relay / pass-the-hash en {HOST.NAME} (>={ITEM.VALUE} en 1h)
+        priority: HIGH
+        description: Volumen muy elevado de validaciones NTLM en poco tiempo. Investiga posibles relay attacks o abuso de credenciales.
+        tags:
+        - tag: Category
+          value: Authentication
+        - tag: Action
+          value: NTLMValidationCrit
+        manual_close: 'YES'
