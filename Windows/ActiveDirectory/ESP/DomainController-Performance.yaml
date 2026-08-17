@@ -1,0 +1,616 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 5200a8027a5b4f21983e3349ae9f030b
+    name: Windows Event Log
+  templates:
+  - uuid: a10c3fe19f5c4c1eaa9dd7b6f5b1e002
+    template: Windows AD Performance and Availability
+    name: Windows AD - Domain Controller - Rendimiento y Disponibilidad
+    description: >
+      Métricas específicas de Active Directory (NTDS, LDAP, Kerberos, Netlogon,
+      SYSVOL/DFSR, DNS) que NO cubre el template estándar "Windows by Zabbix
+      agent" (CPU, RAM, disco, red genéricos). Se centra en el rendimiento y
+      disponibilidad del servicio de directorio: latencia LDAP, throughput de
+      autenticación, estado de los servicios críticos de AD, cola de trabajo
+      del DS, salud de la replicación SYSVOL/DRA, resolución DNS y tamaño de
+      la base de datos NTDS.
+
+      Todos los items usan únicamente contadores de rendimiento nativos de
+      Windows (perf_counter), service.info y vfs.file.size — todas keys
+      estándar del agente Zabbix, sin necesidad de UserParameter.
+
+      NOTA: los nombres de contador de perfmon dependen del idioma del SO.
+      Los indicados aquí son los nombres en inglés (US); si el DC tiene el
+      SO en español, sustituye por el nombre localizado o usa el índice
+      numérico del contador (más robusto ante cambios de idioma).
+    groups:
+    - name: Windows Event Log
+    macros:
+    - macro: '{$AD.LDAP.BINDTIME.WARN}'
+      value: '30'
+      description: Tiempo medio de bind LDAP (ms) para disparar alerta WARNING.
+    - macro: '{$AD.LDAP.BINDTIME.CRIT}'
+      value: '100'
+      description: Tiempo medio de bind LDAP (ms) para disparar alerta CRÍTICA.
+    - macro: '{$AD.DRA.REPL.QUEUE.WARN}'
+      value: '20'
+      description: Nº de operaciones pendientes en la cola de replicación DRA para disparar alerta.
+    - macro: '{$AD.ATQ.QUEUE.WARN}'
+      value: '10'
+      description: Nº de peticiones LDAP en cola en el ATQ (Async Thread Queue) para disparar alerta de saturación.
+    - macro: '{$AD.ATQ.QUEUE.CRIT}'
+      value: '30'
+      description: Nº de peticiones LDAP en cola en el ATQ para escalar a crítico.
+    - macro: '{$AD.SYSVOL.BACKLOG.WARN}'
+      value: '50'
+      description: Nº de archivos pendientes de replicar en SYSVOL (DFSR backlog) para disparar alerta.
+    - macro: '{$AD.SEMAPHORE.TIMEOUTS.WARN}'
+      value: '1'
+      description: Nº de timeouts de semáforo LDAP en 5m para disparar alerta (indica saturación de conexiones concurrentes).
+    - macro: '{$AD.NTDS.DIT.PATH}'
+      value: 'C:\Windows\NTDS\ntds.dit'
+      description: Ruta al fichero de base de datos de AD.
+    items:
+    # ============ DISPONIBILIDAD: SERVICIOS CRÍTICOS DE AD ============
+    - uuid: a1b2c3d4e5f6470a8b9c0d1e2f3a4b01
+      name: 'Servicio: NTDS (Active Directory Domain Services)'
+      type: ZABBIX_ACTIVE
+      key: service.info[NTDS,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: Estado del servicio NTDS. Si se detiene, el DC deja de responder a autenticación y consultas LDAP.
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: b2c3d4e5f6a7481b9c0d1e2f3a4b5c12
+        expression: 'last(/Windows AD Performance and Availability/service.info[NTDS,state])<>0'
+        name: 'Servicio NTDS no está en ejecución en {HOST.NAME}'
+        priority: DISASTER
+        description: El servicio de Active Directory Domain Services no está corriendo. El DC no puede autenticar ni responder a LDAP.
+        manual_close: 'YES'
+
+    - uuid: c3d4e5f6a7b8492c9c0d1e2f3a4b5c23
+      name: 'Servicio: Netlogon'
+      type: ZABBIX_ACTIVE
+      key: service.info[Netlogon,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: >
+        Estado del servicio Netlogon. Necesario para el canal seguro y la
+        localización de DCs (DC Locator). Nota: este check solo confirma que
+        el servicio está arrancado, no que el secure channel esté sano
+        (para eso haría falta nltest /sc_verify, fuera del alcance de esta
+        plantilla).
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: d4e5f6a7b8c9403d9c0d1e2f3a4b5c34
+        expression: 'last(/Windows AD Performance and Availability/service.info[Netlogon,state])<>0'
+        name: 'Servicio Netlogon no está en ejecución en {HOST.NAME}'
+        priority: HIGH
+        description: El servicio Netlogon no está corriendo. Afecta al canal seguro con otros equipos y a la localización de DCs.
+        manual_close: 'YES'
+
+    - uuid: e5f6a7b8c9d0414eac0d1e2f3a4b5c45
+      name: 'Servicio: KDC (Kerberos Key Distribution Center)'
+      type: ZABBIX_ACTIVE
+      key: service.info[Kdc,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: Estado del servicio KDC. Si se detiene, no se emiten ni renuevan tickets Kerberos.
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: f6a7b8c9d0e1425fbd1e2f3a4b5c6d56
+        expression: 'last(/Windows AD Performance and Availability/service.info[Kdc,state])<>0'
+        name: 'Servicio KDC no está en ejecución en {HOST.NAME}'
+        priority: DISASTER
+        description: El KDC no está corriendo. No se pueden emitir ni renovar tickets Kerberos desde este DC.
+        manual_close: 'YES'
+
+    - uuid: a7b8c9d0e1f2436fce2f3a4b5c6d7e67
+      name: 'Servicio: DNS Server'
+      type: ZABBIX_ACTIVE
+      key: service.info[DNS,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: Estado del servicio DNS Server (si este DC actúa también como servidor DNS integrado en AD).
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: b8c9d0e1f2a3447fdf3a4b5c6d7e8f78
+        expression: 'last(/Windows AD Performance and Availability/service.info[DNS,state])<>0'
+        name: 'Servicio DNS Server no está en ejecución en {HOST.NAME}'
+        priority: HIGH
+        description: El servicio DNS no está corriendo en este DC. Verifica si hay otros DNS disponibles para los clientes de esta zona.
+        manual_close: 'YES'
+
+    - uuid: c9d0e1f2a3b4458feea4b5c6d7e8f989
+      name: 'Servicio: W32Time (sincronización horaria)'
+      type: ZABBIX_ACTIVE
+      key: service.info[W32Time,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: >
+        Estado del servicio de hora de Windows. Un desfase horario superior a
+        5 minutos (tolerancia Kerberos por defecto) provoca fallos de
+        autenticación en todo el dominio. Nota: este check solo confirma que
+        el servicio está arrancado, no el desfase real en segundos (para eso
+        haría falta parsear 'w32tm /query /status', fuera del alcance de
+        esta plantilla).
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: d0e1f2a3b4c5469ffab5c6d7e8f9a09a
+        expression: 'last(/Windows AD Performance and Availability/service.info[W32Time,state])<>0'
+        name: 'Servicio W32Time no está en ejecución en {HOST.NAME}'
+        priority: HIGH
+        description: El servicio de hora no está corriendo. Riesgo de desincronización horaria y fallos de autenticación Kerberos en todo el dominio.
+        manual_close: 'YES'
+
+    - uuid: e1f2a3b4c5d6470afac6d7e8f9a0b1ab
+      name: 'Servicio: DFS Replication (SYSVOL)'
+      type: ZABBIX_ACTIVE
+      key: service.info[DFSR,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: Estado del servicio de replicación DFS, responsable de replicar SYSVOL (GPOs y scripts de logon) entre DCs.
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: f2a3b4c5d6e7481bfbd7e8f9a0b1c2bc
+        expression: 'last(/Windows AD Performance and Availability/service.info[DFSR,state])<>0'
+        name: 'Servicio DFS Replication no está en ejecución en {HOST.NAME}'
+        priority: HIGH
+        description: El servicio de replicación DFS no está corriendo. SYSVOL (GPOs, scripts de logon) dejará de replicarse desde/hacia este DC.
+        manual_close: 'YES'
+
+    - uuid: a1b2c3d4e5f6470afafffe4f5a6b7dae
+      name: 'Servicio: Intersite Messaging (KCC entre sedes)'
+      type: ZABBIX_ACTIVE
+      key: service.info[IsmServ,state]
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: UNSIGNED
+      valuemap:
+        name: Service state
+      description: >
+        Estado del servicio de mensajería entre sedes (Knowledge Consistency
+        Checker inter-sede). Necesario si hay más de una sede AD para que el
+        KCC calcule y mantenga la topología de replicación entre sedes.
+      tags:
+      - tag: Application
+        value: AD Availability
+      triggers:
+      - uuid: b2c3d4e5f6a7481bfb00ff5a6b7c8dbf
+        expression: 'last(/Windows AD Performance and Availability/service.info[IsmServ,state])<>0'
+        name: 'Servicio Intersite Messaging no está en ejecución en {HOST.NAME}'
+        priority: WARNING
+        description: El servicio de mensajería entre sedes no está corriendo. Si el entorno tiene varias sedes AD, la topología de replicación inter-sede puede quedar desactualizada.
+        manual_close: 'YES'
+
+    # ============ RENDIMIENTO LDAP ============
+    - uuid: a3b4c5d6e7f8492cfce8f9a0b1c2d3cd
+      name: 'AD LDAP - Tiempo medio de bind (ms)'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\LDAP Bind Time"]'
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      units: ms
+      description: >
+        Tiempo medio en ms que tarda un bind LDAP simple. Es uno de los
+        indicadores más directos de la experiencia de usuario final al
+        autenticarse contra este DC. Picos sostenidos indican saturación de
+        CPU/ATQ, problemas de red o resolución DNS lenta.
+      tags:
+      - tag: Application
+        value: AD Performance
+      triggers:
+      - uuid: b4c5d6e7f8a9403dfdf9a0b1c2d3e4de
+        expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\LDAP Bind Time"],10m)>={$AD.LDAP.BINDTIME.WARN}'
+        name: 'Tiempo de bind LDAP elevado en {HOST.NAME} (>={ITEM.VALUE} ms sostenido 10m)'
+        priority: WARNING
+        description: El tiempo de bind LDAP lleva 10 minutos por encima del umbral. Revisa carga de CPU, cola ATQ y latencia de red del DC.
+        dependencies:
+        - name: 'Tiempo de bind LDAP crítico en {HOST.NAME} (>={ITEM.VALUE} ms sostenido 10m)'
+          expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\LDAP Bind Time"],10m)>={$AD.LDAP.BINDTIME.CRIT}'
+        tags:
+        - tag: Category
+          value: Performance
+        - tag: Action
+          value: LDAPBindTimeWarn
+        manual_close: 'YES'
+      - uuid: c5d6e7f8a9b0414eaea0b1c2d3e4f5ef
+        expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\LDAP Bind Time"],10m)>={$AD.LDAP.BINDTIME.CRIT}'
+        name: 'Tiempo de bind LDAP crítico en {HOST.NAME} (>={ITEM.VALUE} ms sostenido 10m)'
+        priority: HIGH
+        description: El tiempo de bind LDAP es muy elevado de forma sostenida. Impacto directo en la experiencia de autenticación de todos los clientes contra este DC.
+        tags:
+        - tag: Category
+          value: Performance
+        - tag: Action
+          value: LDAPBindTimeCrit
+        manual_close: 'YES'
+
+    - uuid: d6e7f8a9b0c1425fbfb1c2d3e4f5a6f0
+      name: 'AD LDAP - Búsquedas por segundo'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\LDAP Searches/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      description: Throughput de búsquedas LDAP atendidas por segundo. Útil como baseline de carga y para correlacionar picos con degradación de bind time.
+      tags:
+      - tag: Application
+        value: AD Performance
+
+    - uuid: e7f8a9b0c1d2436fcfc2d3e4f5a6b701
+      name: 'AD LDAP - Sesiones cliente concurrentes'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\LDAP Client Sessions"]'
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      description: >
+        Número de sesiones LDAP concurrentes activas. Un crecimiento sin
+        techo puede indicar clientes que no cierran conexión correctamente o
+        un pico de autenticación anómalo (ver también el conteo NTLM del
+        template de seguridad).
+      tags:
+      - tag: Application
+        value: AD Performance
+
+    - uuid: f8a9b0c1d2e3447fdfd3e4f5a6b7c812
+      name: 'AD DS - Peticiones en cola del ATQ (Async Thread Queue)'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\ATQ Outstanding Queued Requests"]'
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      description: >
+        Peticiones pendientes en la cola de hilos asíncronos de NTDS. Es el
+        indicador más fiable de saturación real del motor de directorio: si
+        crece de forma sostenida, el DC no da abasto con la carga entrante
+        (LDAP + Kerberos + replicación) independientemente de si CPU/RAM
+        parecen "normales" en el template genérico de Windows.
+      tags:
+      - tag: Application
+        value: AD Performance
+      triggers:
+      - uuid: a9b0c1d2e3f4458feee4f5a6b7c8d923
+        expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\ATQ Outstanding Queued Requests"],5m)>={$AD.ATQ.QUEUE.WARN}'
+        name: 'Cola ATQ elevada en {HOST.NAME} (>={ITEM.VALUE} sostenido 5m)'
+        priority: WARNING
+        description: La cola de peticiones asíncronas de NTDS lleva 5 minutos por encima del umbral. El DC está empezando a saturarse pese a que CPU/RAM puedan parecer normales.
+        dependencies:
+        - name: 'Cola ATQ crítica en {HOST.NAME} (>={ITEM.VALUE} sostenido 5m)'
+          expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\ATQ Outstanding Queued Requests"],5m)>={$AD.ATQ.QUEUE.CRIT}'
+        tags:
+        - tag: Category
+          value: Performance
+        - tag: Action
+          value: ATQQueueWarn
+        manual_close: 'YES'
+      - uuid: b0c1d2e3f4a5469fafd5a6b7c8d9e034
+        expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\ATQ Outstanding Queued Requests"],5m)>={$AD.ATQ.QUEUE.CRIT}'
+        name: 'Cola ATQ crítica en {HOST.NAME} (>={ITEM.VALUE} sostenido 5m)'
+        priority: HIGH
+        description: Saturación crítica del motor NTDS. Los clientes van a experimentar timeouts de autenticación y búsqueda LDAP.
+        tags:
+        - tag: Category
+          value: Performance
+        - tag: Action
+          value: ATQQueueCrit
+        manual_close: 'YES'
+
+    - uuid: c1d2e3f4a5b6470afae5b6c7d8e9f045
+      name: 'AD LDAP - Binds exitosos por segundo'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\LDAP Successful Binds/sec"]'
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      description: >
+        Binds LDAP exitosos por segundo. Combinado con el tiempo de bind y la
+        cola ATQ, permite distinguir "menos carga real" de "misma carga
+        atendida peor" cuando sube la latencia.
+      tags:
+      - tag: Application
+        value: AD Performance
+
+    # ============ RENDIMIENTO KERBEROS / AUTENTICACIÓN ============
+    - uuid: d2e3f4a5b6c7481bfbf6c7d8e9f0a156
+      name: 'AD Kerberos - Autenticaciones por segundo'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\Kerberos Authentications/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      description: Throughput de autenticaciones Kerberos por segundo servidas por este DC. Baseline de carga de autenticación normal del dominio.
+      tags:
+      - tag: Application
+        value: AD Performance
+
+    - uuid: e3f4a5b6c7d8492cfcf7d8e9f0a1b267
+      name: 'AD Auth - Autenticaciones NTLM (throughput)'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\NTLM Authentications/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      description: >
+        Throughput NTLM en autenticaciones/segundo (rendimiento). Complementa
+        al conteo de eventos 4776 del template de seguridad, que mide volumen
+        absoluto por hora para detección de anomalías; este mide la tasa
+        instantánea como indicador de carga.
+      tags:
+      - tag: Application
+        value: AD Performance
+
+    # ============ REPLICACIÓN AD (DRA) ============
+    - uuid: f4a5b6c7d8e9403dfdf8e9f0a1b2c378
+      name: 'AD Replicación - Bytes de entrada (DRA Inbound)'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\DRA Inbound Bytes Total/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: Bps
+      description: Volumen de datos de replicación entrante desde otros DCs. Útil para dimensionar el enlace WAN entre sedes y detectar replicación anormalmente alta (reinicialización, corrupción de atributos con replicación en bucle).
+      tags:
+      - tag: Application
+        value: AD Replication
+
+    - uuid: a5b6c7d8e9f0414eaea9f0a1b2c3d489
+      name: 'AD Replicación - Bytes de salida (DRA Outbound)'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\DRA Outbound Bytes Total/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: Bps
+      description: Volumen de datos de replicación saliente hacia otros DCs.
+      tags:
+      - tag: Application
+        value: AD Replication
+
+    - uuid: b6c7d8e9f0a1425fbfba0b1c2d3e459a
+      name: 'AD Replicación - Objetos pendientes en cola de sincronización'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\DRA Pending Replication Synchronizations"]'
+      delay: '60'
+      history: 30d
+      trends: 365d
+      value_type: FLOAT
+      description: >
+        Nº de sincronizaciones de replicación pendientes de procesar con
+        otros DCs (equivalente a la cola de trabajo de replicación, no a
+        'repadmin /showrepl' pero correlacionado). Un valor sostenidamente
+        alto indica que este DC no consigue ponerse al día con sus socios de
+        replicación (enlace lento, socio caído, o sobrecarga local).
+      tags:
+      - tag: Application
+        value: AD Replication
+      triggers:
+      - uuid: c7d8e9f0a1b2436fcfcb1c2d3e4f56ab
+        expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\NTDS\DRA Pending Replication Synchronizations"],15m)>={$AD.DRA.REPL.QUEUE.WARN}'
+        name: 'Cola de replicación AD pendiente en {HOST.NAME} (>={ITEM.VALUE} sostenido 15m)'
+        priority: WARNING
+        description: >
+          La cola de sincronizaciones de replicación pendientes lleva 15
+          minutos por encima del umbral. Ejecuta 'repadmin /showrepl' y
+          'repadmin /replsummary' para identificar el socio de replicación
+          problemático.
+        tags:
+        - tag: Category
+          value: Replication
+        - tag: Action
+          value: ReplicationQueueWarn
+        manual_close: 'YES'
+
+    - uuid: d8e9f0a1b2c3447fdfdc2d3e4f5a67bc
+      name: 'AD Replicación - Fallos de sincronización acumulados desde arranque'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\DRA Sync Failures since Boot"]'
+      delay: '120'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      description: >
+        Nº acumulado de fallos de sincronización de replicación desde el
+        arranque del servicio. Al ser acumulativo, usa el delta (Zabbix lo
+        calcula automáticamente en el gráfico) para ver si sigue creciendo
+        activamente o fue un evento puntual histórico.
+      tags:
+      - tag: Application
+        value: AD Replication
+      triggers:
+      - uuid: e9f0a1b2c3d4458feeed3e4f5a6b78cd
+        expression: 'change(/Windows AD Performance and Availability/perf_counter_en["\NTDS\DRA Sync Failures since Boot"])>0'
+        name: 'Nuevo fallo de sincronización de replicación AD en {HOST.NAME}'
+        priority: WARNING
+        description: Se ha producido un nuevo fallo de sincronización de replicación desde la última comprobación. Revisa 'repadmin /showrepl' para identificar el socio y la causa.
+        manual_close: 'YES'
+
+    # ============ SYSVOL / DFSR ============
+    - uuid: f0a1b2c3d4e5469fafeee4f5a6b7c9de
+      name: 'AD SYSVOL - Actividad de replicación DFSR (ahorro de ancho de banda)'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\DFS Replicated Folders(SYSVOL Share)\Bandwidth Savings Using DFS Replication"]'
+      delay: '300'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      description: >
+        Indicador de actividad de replicación de la carpeta SYSVOL. Un
+        backlog creciente entre DCs implica que las GPOs y scripts de logon
+        recién modificados tardan en propagarse. Para el backlog exacto en
+        Nº de archivos pendientes ('dfsrdiag backlog'), Windows no expone
+        contador de perfmon; quedaría fuera del alcance de esta plantilla al
+        requerir un script.
+      tags:
+      - tag: Application
+        value: AD Replication
+
+    # ============ DNS: RENDIMIENTO Y FALLOS ============
+    - uuid: d5e6f7a8b9c0414eaf44c9d0e1f2a124
+      name: 'AD DNS - Consultas recibidas/seg'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\DNS\Total Query Received/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      tags:
+      - tag: Application
+        value: AD DNS
+
+    - uuid: e6f7a8b9c0d1425fbf55d0e1f2a3b235
+      name: 'AD DNS - Respuestas enviadas/seg'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\DNS\Total Response Sent/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      tags:
+      - tag: Application
+        value: AD DNS
+
+    - uuid: f7a8b9c0d1e2436fcf66e1f2a3b4c346
+      name: 'AD DNS - Fallos de resolución recursiva/seg'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\DNS\Recursive Query Failure/sec"]'
+      delay: '60'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '/s'
+      description: Fallos de resolución recursiva (consultas externas). Sostenido en alto indica problema de forwarders o salida a Internet, no del propio AD.
+      tags:
+      - tag: Application
+        value: AD DNS
+      triggers:
+      - uuid: a8b9c0d1e2f3447fdf77f2a3b4c5d457
+        expression: 'min(/Windows AD Performance and Availability/perf_counter_en["\DNS\Recursive Query Failure/sec"],10m)>5'
+        name: 'Fallos de resolución DNS recursiva elevados en {HOST.NAME}'
+        priority: WARNING
+        description: Fallos recursivos sostenidos. Revisa forwarders configurados y conectividad de salida.
+        manual_close: 'YES'
+
+    # ============ GLOBAL CATALOG (solo métrica perfmon) ============
+    - uuid: d1e2f3a4b5c6470afaf5a4b5c6d7e8f9a
+      name: 'AD NTDS - % de lecturas servidas desde el GC'
+      type: ZABBIX_ACTIVE
+      key: 'perf_counter_en["\NTDS\DS % Reads from GC"]'
+      delay: '120'
+      history: 90d
+      trends: 365d
+      value_type: FLOAT
+      units: '%'
+      description: >
+        % de lecturas atendidas desde el Global Catalog local. No sustituye
+        a un check de disponibilidad del puerto 3268 (eso requeriría
+        script), pero una caída brusca a 0 puede ser indicio de que el GC
+        dejó de responder o no está anunciado correctamente.
+      tags:
+      - tag: Application
+        value: AD Performance
+
+    # ============ TAMAÑO NTDS.DIT ============
+    - uuid: a4b5c6d7e8f9403dfaf8d7e8f9a0b1c2d
+      name: 'AD NTDS - Tamaño de ntds.dit (bytes)'
+      type: ZABBIX_AGENT
+      key: 'vfs.file.size["{$AD.NTDS.DIT.PATH}"]'
+      delay: '3600'
+      history: 90d
+      trends: 730d
+      value_type: UNSIGNED
+      units: B
+      description: >
+        Tamaño de la base de datos de AD. No es disco genérico: un
+        crecimiento anómalo indica tombstones sin recolectar o un problema
+        de garbage collection, no solo "falta espacio". vfs.file.size es
+        una key nativa del agente, sin UserParameter.
+      tags:
+      - tag: Application
+        value: AD Database
+      triggers:
+      - uuid: b5c6d7e8f9a0414eafa9e8f9a0b1c2d3e
+        expression: >
+          (last(/Windows AD Performance and Availability/vfs.file.size["{$AD.NTDS.DIT.PATH}"])-min(/Windows AD Performance and Availability/vfs.file.size["{$AD.NTDS.DIT.PATH}"],7d))/min(/Windows AD Performance and Availability/vfs.file.size["{$AD.NTDS.DIT.PATH}"],7d)>0.15
+        name: 'Crecimiento anómalo de ntds.dit en {HOST.NAME} (+15% en 7 días)'
+        priority: WARNING
+        description: Crecimiento superior al 15% en una semana. Revisa tombstone lifetime, objetos eliminados masivamente o problema de replicación/GC.
+        manual_close: 'YES'
+
+  value_maps:
+  - uuid: c3d4e5f6a7b8492cfc010f6b7c8d9ec0
+    name: Service state
+    mappings:
+    - value: '0'
+      newvalue: Running
+    - value: '1'
+      newvalue: Paused
+    - value: '2'
+      newvalue: Start pending
+    - value: '3'
+      newvalue: Pause pending
+    - value: '4'
+      newvalue: Continue pending
+    - value: '5'
+      newvalue: Stop pending
+    - value: '6'
+      newvalue: Stopped
+    - value: '7'
+      newvalue: Unknown
+    - value: '255'
+      newvalue: No such service
